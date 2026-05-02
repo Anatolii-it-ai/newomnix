@@ -4,10 +4,6 @@
   "description": "OmnixOS — статический фронтенд для деплоя на Vercel",
   "private": true,
   "scripts": {
-    "build": "echo \"static site — nothing to build\"",
     "dev": "npx serve . -l 3000"
-  },
-  "engines": {
-    "node": ">=18"
   }
 }
