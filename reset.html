@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Новый пароль — OmnixOS</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="auth-wrap">
+    <section class="auth-card">
+      <a href="/" class="brand">
+        <img src="logo.svg" alt="" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </a>
+      <h1>Новый пароль</h1>
+      <p class="auth-sub">Введи новый пароль (минимум 8 символов)</p>
+      <form id="reset-form">
+        <div class="field">
+          <label for="password">Новый пароль</label>
+          <input id="password" name="password" type="password" minlength="8" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Сохранить пароль</button>
+      </form>
+      <p class="auth-foot"><a href="login.html">← Вернуться ко входу</a></p>
+    </section>
+  </main>
+  <script src="auth.js"></script>
+  <script>
+    document.getElementById('reset-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const token = new URLSearchParams(location.search).get('token');
+      if (!token) return toast('Токен отсутствует. Запроси ссылку заново.', 'error');
+      const fd = new FormData(e.target);
+      const r = await api('POST', '/api/auth/reset', { token, password: fd.get('password') });
+      if (r.ok) {
+        toast('Пароль обновлён. Теперь можно войти.', 'success');
+        setTimeout(() => location.href = 'login.html', 800);
+      } else {
+        toast(r.error === 'invalid_token' ? 'Ссылка устарела или уже использована' : 'Ошибка', 'error');
+      }
+    });
+  </script>
+</body>
+</html>

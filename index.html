@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0B0B14" />
+  <meta name="description" content="OmnixOS — операционная система для жизни. Цели, привычки, финансы, здоровье и фокус в одной системе." />
+  <title>OmnixOS — операционная система для жизни</title>
+
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Particle background -->
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+  <div class="aurora" aria-hidden="true"></div>
+
+  <!-- Navigation -->
+  <header class="nav">
+    <a href="#" class="brand" aria-label="OmnixOS на главную">
+      <img src="logo.svg" alt="" class="brand-logo" />
+      <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Основная навигация">
+      <a href="#modules">Модули</a>
+      <a href="#wheel">Колесо баланса</a>
+      <a href="#principles">Принципы</a>
+      <a href="#why">Почему работает</a>
+    </nav>
+    <a href="login.html" class="btn btn-ghost nav-cta">Войти в систему →</a>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow">v 1.0 · operating system for life</span>
+        <h1 class="hero-title">
+          Одна система.<br/>
+          <span class="grad-text">Вся твоя жизнь</span><br/>
+          под контролем.
+        </h1>
+        <p class="hero-sub">
+          OmnixOS — не очередной таск-менеджер. Это связанная среда, где привычки запускают здоровье,
+          здоровье поднимает энергию, энергия двигает цели. Десять модулей, один фокус, один взгляд.
+        </p>
+        <div class="hero-actions">
+          <a href="register.html" class="btn btn-primary">Начать бесплатно</a>
+          <a href="#modules" class="btn btn-secondary">Смотреть модули</a>
+        </div>
+        <ul class="hero-meta">
+          <li><strong>10</strong> модулей</li>
+          <li><strong>3 клика</strong> до любого действия</li>
+          <li><strong>Offline</strong>-first · приватность</li>
+        </ul>
+      </div>
+
+      <!-- Hero visual: device mockup -->
+      <div class="hero-visual" aria-hidden="true">
+        <div class="device">
+          <div class="device-bar">
+            <span></span><span></span><span></span>
+            <em>omnix.os / dashboard</em>
+          </div>
+          <div class="device-body">
+            <div class="card card-pulse">
+              <div class="card-head">
+                <span class="dot dot-green"></span>
+                <span>Пульс жизни · сегодня</span>
+              </div>
+              <div class="pulse-row">
+                <div class="pulse-tile">
+                  <span class="tile-label">Энергия</span>
+                  <span class="tile-value">8.4</span>
+                  <div class="bar"><i style="width: 84%"></i></div>
+                </div>
+                <div class="pulse-tile">
+                  <span class="tile-label">Фокус</span>
+                  <span class="tile-value">76%</span>
+                  <div class="bar"><i style="width: 76%"></i></div>
+                </div>
+                <div class="pulse-tile">
+                  <span class="tile-label">Серия</span>
+                  <span class="tile-value">42<small>дн</small></span>
+                  <div class="bar"><i style="width: 92%"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card-tasks">
+              <div class="card-head">
+                <span class="dot dot-violet"></span>
+                <span>Топ-3 на сегодня</span>
+              </div>
+              <ul class="task-list">
+                <li><label><input type="checkbox" checked /> <span>Закрыть проект Q2 · работа</span></label><em>1ч 20м</em></li>
+                <li><label><input type="checkbox" /> <span>Силовая тренировка · здоровье</span></label><em>45м</em></li>
+                <li><label><input type="checkbox" /> <span>Звонок с ментором · развитие</span></label><em>30м</em></li>
+              </ul>
+            </div>
+
+            <div class="card card-mini">
+              <div class="card-head"><span class="dot dot-cyan"></span><span>AI-инсайт</span></div>
+              <p class="ai-line">«Ты 11 дней не закрывал шаги по цели <b>Здоровье — 75кг</b>. Запланировать на завтра 18:30?»</p>
+              <div class="ai-actions">
+                <button class="chip chip-primary">Запланировать</button>
+                <button class="chip">Позже</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="orbit orbit-1" aria-hidden="true"></div>
+        <div class="orbit orbit-2" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Wheel of balance -->
+  <section id="wheel" class="section section-wheel">
+    <div class="section-head">
+      <span class="eyebrow">module 01 · pulse</span>
+      <h2>Колесо баланса <span class="grad-text">в реальном времени</span></h2>
+      <p>Восемь сфер жизни, оценка 1–10, мгновенный взгляд на дисбаланс. Наведи курсор — увидишь рекомендацию системы.</p>
+    </div>
+
+    <div class="wheel-wrap">
+      <svg class="wheel" viewBox="-110 -110 220 220" role="img" aria-label="Колесо баланса">
+        <defs>
+          <linearGradient id="seg-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#7C5CFF"/>
+            <stop offset="100%" stop-color="#22D3EE"/>
+          </linearGradient>
+          <linearGradient id="seg-grad-2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#22D3EE"/>
+            <stop offset="100%" stop-color="#34D399"/>
+          </linearGradient>
+        </defs>
+        <!-- Concentric grid -->
+        <g class="wheel-grid">
+          <circle r="100"/><circle r="80"/><circle r="60"/><circle r="40"/><circle r="20"/>
+        </g>
+        <!-- Spokes -->
+        <g class="wheel-spokes">
+          <line x1="0" y1="-100" x2="0" y2="100"/>
+          <line x1="-100" y1="0" x2="100" y2="0"/>
+          <line x1="-70.7" y1="-70.7" x2="70.7" y2="70.7"/>
+          <line x1="-70.7" y1="70.7" x2="70.7" y2="-70.7"/>
+        </g>
+        <!-- Filled segments will be drawn by JS -->
+        <g id="wheel-segments"></g>
+        <!-- Labels -->
+        <g class="wheel-labels" id="wheel-labels"></g>
+        <circle r="6" fill="#fff"/>
+      </svg>
+
+      <aside class="wheel-side" id="wheel-side">
+        <div class="wheel-stat">
+          <span class="eyebrow">средний балл</span>
+          <h3 id="wheel-avg">7.1</h3>
+          <p>Хороший общий уровень. Подтянуть — <b id="wheel-weakest">здоровье</b>.</p>
+        </div>
+        <ul class="wheel-list" id="wheel-list"></ul>
+      </aside>
+    </div>
+  </section>
+
+  <!-- Modules grid -->
+  <section id="modules" class="section">
+    <div class="section-head">
+      <span class="eyebrow">10 модулей · одна система</span>
+      <h2>Каждый модуль <span class="grad-text">кормит соседний</span></h2>
+      <p>Привычка → здоровье → энергия → продуктивность → цель. Сила OmnixOS не в количестве функций, а в связях между ними.</p>
+    </div>
+
+    <div class="modules-grid">
+      <!-- 1 -->
+      <article class="mod" style="--mod-accent:#7C5CFF">
+        <div class="mod-num">01</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h6l2-4 2 8 2-4h6"/></svg>
+        </div>
+        <h3>Дашборд</h3>
+        <p class="mod-tag">Пульс жизни</p>
+        <p>Колесо баланса 8 сфер, топ-3 приоритета на день, серии и недельные итоги.</p>
+      </article>
+      <!-- 2 -->
+      <article class="mod" style="--mod-accent:#22D3EE">
+        <div class="mod-num">02</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
+        </div>
+        <h3>Цели</h3>
+        <p class="mod-tag">Карта жизни</p>
+        <p>Цели 1–5 лет → проекты → задачи → шаги. Прогресс-бары и дедлайны с напоминаниями.</p>
+      </article>
+      <!-- 3 -->
+      <article class="mod" style="--mod-accent:#34D399">
+        <div class="mod-num">03</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+        </div>
+        <h3>Задачи</h3>
+        <p class="mod-tag">Умный планировщик</p>
+        <p>Матрица Эйзенхауэра, теги по сферам, режим «Фокус дня», оценка времени, календарь.</p>
+      </article>
+      <!-- 4 -->
+      <article class="mod" style="--mod-accent:#F59E0B">
+        <div class="mod-num">04</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12c2-3 5-3 7 0s5 3 7 0"/><path d="M3 18c2-3 5-3 7 0s5 3 7 0"/><path d="M3 6c2-3 5-3 7 0s5 3 7 0"/></svg>
+        </div>
+        <h3>Привычки</h3>
+        <p class="mod-tag">Не разрывай цепь</p>
+        <p>Утро / день / вечер. Цепочки дней, лучшая серия, % выполнения за месяц.</p>
+      </article>
+      <!-- 5 -->
+      <article class="mod" style="--mod-accent:#10B981">
+        <div class="mod-num">05</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>
+        </div>
+        <h3>Финансы</h3>
+        <p class="mod-tag">Денежный контроль</p>
+        <p>Бюджет по категориям, ввод траты в 3 клика, подушка безопасности в месяцах.</p>
+      </article>
+      <!-- 6 -->
+      <article class="mod" style="--mod-accent:#EF4444">
+        <div class="mod-num">06</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21s-7-4.5-9-10A5 5 0 0 1 12 7a5 5 0 0 1 9 4c-2 5.5-9 10-9 10z"/></svg>
+        </div>
+        <h3>Здоровье</h3>
+        <p class="mod-tag">Тело и энергия</p>
+        <p>Сон, вода, шаги, настроение, вес, давление. Паттерны: когда ты на пике — а когда нет.</p>
+      </article>
+      <!-- 7 -->
+      <article class="mod" style="--mod-accent:#8B5CF6">
+        <div class="mod-num">07</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><path d="M21 4v5h-5"/></svg>
+        </div>
+        <h3>Обзоры</h3>
+        <p class="mod-tag">Еженедельный ритуал</p>
+        <p>Шаблон ретро: что сделал, что нет, почему, что менять. 15 минут в воскресенье.</p>
+      </article>
+      <!-- 8 -->
+      <article class="mod" style="--mod-accent:#EC4899">
+        <div class="mod-num">08</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11l4 4v14H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        </div>
+        <h3>Дневник</h3>
+        <p class="mod-tag">Мысли и идеи</p>
+        <p>Быстрые заметки, шаблоны: благодарность, достижения дня, намерение на завтра.</p>
+      </article>
+      <!-- 9 -->
+      <article class="mod" style="--mod-accent:#06B6D4">
+        <div class="mod-num">09</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
+        </div>
+        <h3>AI-ассистент</h3>
+        <p class="mod-tag">Проактивный слой</p>
+        <p>Умные напоминания на основе контекста. Утренний бриф за 30с, вечерний рекап за минуту.</p>
+      </article>
+      <!-- 10 -->
+      <article class="mod" style="--mod-accent:#F97316">
+        <div class="mod-num">10</div>
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 21h8M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0z"/><path d="M5 4H3v3a3 3 0 0 0 3 3M19 4h2v3a3 3 0 0 1-3 3"/></svg>
+        </div>
+        <h3>Геймификация</h3>
+        <p class="mod-tag">Очки и уровни</p>
+        <p>XP за привычки, значки за серии, личный аватар, который растёт вместе с тобой.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- Visualisation: AI insight + flow -->
+  <section class="section section-flow">
+    <div class="flow-grid">
+      <div class="flow-copy">
+        <span class="eyebrow">connected by design</span>
+        <h2>Поток, который <span class="grad-text">меняет жизнь</span></h2>
+        <p>Привычка превращается в энергию. Энергия — в фокус. Фокус — в результат. Все модули OmnixOS работают в единой цепочке. Никаких разрозненных приложений, никаких потерянных данных.</p>
+        <ul class="flow-stats">
+          <li><strong>40%</strong><span>наших действий — привычки. OmnixOS делает их измеримыми.</span></li>
+          <li><strong>15 мин</strong><span>еженедельного обзора меняют всю следующую неделю.</span></li>
+          <li><strong>×3</strong><span>скорость достижения целей при декомпозиции до шагов.</span></li>
+        </ul>
+      </div>
+
+      <div class="flow-visual" aria-hidden="true">
+        <div class="chain">
+          <div class="chain-node" style="--c:#F59E0B"><span>Привычка</span></div>
+          <div class="chain-link"></div>
+          <div class="chain-node" style="--c:#EF4444"><span>Здоровье</span></div>
+          <div class="chain-link"></div>
+          <div class="chain-node" style="--c:#22D3EE"><span>Энергия</span></div>
+          <div class="chain-link"></div>
+          <div class="chain-node" style="--c:#34D399"><span>Фокус</span></div>
+          <div class="chain-link"></div>
+          <div class="chain-node achieved" style="--c:#7C5CFF"><span>Цель</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Principles -->
+  <section id="principles" class="section">
+    <div class="section-head">
+      <span class="eyebrow">design principles</span>
+      <h2>Пять принципов, которые <span class="grad-text">мы не нарушаем</span></h2>
+    </div>
+
+    <div class="principles-grid">
+      <div class="principle">
+        <div class="principle-num">01</div>
+        <h3>Скорость</h3>
+        <p>Любое действие — максимум 3 клика. Если дольше — никто не будет пользоваться.</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">02</div>
+        <h3>Минимализм</h3>
+        <p>Только нужное на поверхности. Сложное — на глубине, но всегда в один свайп.</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">03</div>
+        <h3>Offline-first</h3>
+        <p>Всё работает без интернета. Синхронизация — фоном, без блокировок.</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">04</div>
+        <h3>Приватность</h3>
+        <p>Данные — локально или с end-to-end шифрованием. Твоя жизнь — не товар.</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">05</div>
+        <h3>Один взгляд</h3>
+        <p>Всё в одном месте, а не в десяти приложениях. Контекст никогда не теряется.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why it works -->
+  <section id="why" class="section section-why">
+    <div class="why-card">
+      <span class="eyebrow">итог</span>
+      <h2>Почему <span class="grad-text">OmnixOS</span> работает там, где другие — нет</h2>
+      <p class="why-lead">
+        Большинство людей используют отдельно: Notion для задач, другое приложение для привычек, таблицы для финансов, заметки для мыслей. Это разрывает фокус.
+      </p>
+      <p class="why-bold">
+        Сила OmnixOS — в связях между сферами. Привычка → Здоровье → Энергия → Продуктивность → Цель. Система видит всё это вместе.
+      </p>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section id="cta" class="section section-cta">
+    <div class="cta-card">
+      <h2>Начни жить <span class="grad-text">осознанно</span> сегодня</h2>
+      <p>Бесплатно. Без карты. Импорт из Notion и Google Calendar за 60 секунд.</p>
+      <form class="cta-form" id="cta-form">
+        <input type="email" name="email" placeholder="ты@email.com" required aria-label="Email" />
+        <button type="submit" class="btn btn-primary">Получить ранний доступ</button>
+      </form>
+      <script>
+        document.getElementById('cta-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const email = e.target.email.value;
+          location.href = `register.html?email=${encodeURIComponent(email)}`;
+        });
+      </script>
+      <p class="cta-meta">Уже в листе ожидания: <b>12 480</b> человек · Запуск: лето 2026</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="logo.svg" alt="" class="brand-logo" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </div>
+      <p class="footer-tag">Операционная система для жизни.</p>
+      <div class="footer-links">
+        <a href="#modules">Модули</a>
+        <a href="#principles">Принципы</a>
+        <a href="#cta">Доступ</a>
+      </div>
+      <p class="footer-copy">© 2026 OmnixOS. Создано с уважением к твоему времени.</p>
+    </div>
+  </footer>
+
+  <script src="auth.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

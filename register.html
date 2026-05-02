@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Регистрация — OmnixOS</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="auth-wrap">
+    <section class="auth-card">
+      <a href="/" class="brand">
+        <img src="logo.svg" alt="" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </a>
+
+      <h1>Регистрация</h1>
+      <p class="auth-sub">Создай аккаунт за 30 секунд</p>
+
+      <form id="reg-form">
+        <div class="field">
+          <label for="name">Как тебя зовут</label>
+          <input id="name" name="name" type="text" autocomplete="name" />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="password">Пароль (мин. 8 символов)</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Создать аккаунт</button>
+      </form>
+
+      <div class="auth-divider">или</div>
+      <div class="auth-providers">
+        <a href="/api/auth/google" class="provider-btn" data-provider="google">
+          <svg viewBox="0 0 24 24"><path fill="#fff" d="M22.5 12.27c0-.85-.07-1.66-.2-2.45H12v4.64h5.92a5.07 5.07 0 0 1-2.2 3.32v2.77h3.55c2.08-1.92 3.28-4.74 3.28-8.28z"/><path fill="#fff" opacity=".6" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.55-2.77c-.98.66-2.24 1.05-3.73 1.05-2.87 0-5.3-1.94-6.17-4.55H2.18v2.86A11 11 0 0 0 12 23z"/></svg>
+          Продолжить с Google
+        </a>
+      </div>
+
+      <p class="auth-foot">
+        Уже есть аккаунт? <a href="login.html">Войти</a>
+      </p>
+    </section>
+  </main>
+
+  <script src="auth.js"></script>
+  <script>
+    checkProviders();
+    document.getElementById('reg-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const r = await api('POST', '/api/auth/register', {
+        name: fd.get('name'),
+        email: fd.get('email'),
+        password: fd.get('password'),
+      });
+      if (r.ok) {
+        if (r.verifyUrl) console.log('verify URL (dev):', r.verifyUrl);
+        toast('Аккаунт создан. Проверь email для подтверждения.', 'success');
+        setTimeout(() => location.href = 'dashboard.html', 800);
+      } else {
+        const map = {
+          email_taken: 'Email уже зарегистрирован',
+          invalid_email: 'Некорректный email',
+          weak_password: 'Пароль слишком короткий',
+        };
+        toast(map[r.error] || 'Ошибка регистрации', 'error');
+      }
+    });
+  </script>
+</body>
+</html>

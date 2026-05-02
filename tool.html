@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmnixOS — инструмент</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a href="/" class="brand">
+        <img src="logo.svg" alt="" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </a>
+
+      <div class="side-section">кабинет</div>
+      <a class="side-link" href="dashboard.html"><span class="ic">◐</span> Личный кабинет</a>
+
+      <div class="side-section">инструменты</div>
+      <div id="side-tools"></div>
+
+      <div class="side-foot">
+        <a id="admin-link" href="admin.html" style="display:none; color: var(--violet);">→ Админ-панель</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Меню">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
+        <h1 id="page-title">…</h1>
+        <div class="topbar-actions">
+          <div class="user-pill">
+            <span class="avatar" id="topbar-avatar">?</span>
+            <span id="topbar-name">…</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="logout-btn">Выйти</button>
+        </div>
+      </div>
+
+      <div id="tool-root"></div>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script src="auth.js"></script>
+  <script src="tools.js"></script>
+  <script>
+  (async () => {
+    const me = await api('GET', '/api/auth/me');
+    if (!me.ok) return location.href = 'login.html';
+    document.getElementById('topbar-name').textContent = me.user.name || me.user.email;
+    document.getElementById('topbar-avatar').textContent = (me.user.name || me.user.email)[0].toUpperCase();
+    if (me.user.role === 'admin') document.getElementById('admin-link').style.display = 'block';
+
+    // Load user's available tools for sidebar
+    const t = await api('GET', '/api/user/tools');
+    const sideTools = document.getElementById('side-tools');
+    const slug = new URLSearchParams(location.search).get('slug') || 'dashboard';
+
+    if (!t.ok || !t.tools.length) {
+      sideTools.innerHTML = '<p class="muted" style="padding:8px; font-size:12px">Нет доступных инструментов. Обратись к администратору.</p>';
+    } else {
+      sideTools.innerHTML = t.tools.map(tl => `
+        <a class="side-link ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}">
+          <span class="ic">${tl.icon || '∎'}</span> ${tl.name}
+        </a>
+      `).join('');
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await api('POST', '/api/auth/logout');
+      location.href = 'login.html';
+    });
+
+    // Render the requested tool
+    const tool = window.OmnixTools[slug];
+    if (!tool) {
+      document.getElementById('page-title').textContent = 'Инструмент не найден';
+      document.getElementById('tool-root').innerHTML = `<div class="card"><p class="muted">Модуль <code>${slug}</code> ещё не реализован или у тебя нет доступа.</p></div>`;
+      return;
+    }
+    document.getElementById('page-title').textContent = tool.title;
+    try {
+      await tool.render(document.getElementById('tool-root'));
+    } catch (e) {
+      console.error(e);
+      document.getElementById('tool-root').innerHTML = `<div class="card"><p class="muted">Ошибка загрузки инструмента: ${e.message}</p></div>`;
+    }
+  })();
+  </script>
+</body>
+</html>

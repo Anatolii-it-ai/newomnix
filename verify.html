@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Подтверждение email — OmnixOS</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="auth-wrap">
+    <section class="auth-card">
+      <a href="/" class="brand">
+        <img src="logo.svg" alt="" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </a>
+      <h1 id="title">Проверяем…</h1>
+      <p class="auth-sub" id="sub">Подождите секунду</p>
+      <a href="dashboard.html" class="btn btn-primary" id="cta" style="display:none">В личный кабинет</a>
+      <p class="auth-foot" id="foot" style="display:none"><a href="login.html">← Войти</a></p>
+    </section>
+  </main>
+  <script src="auth.js"></script>
+  <script>
+    (async () => {
+      const token = new URLSearchParams(location.search).get('token');
+      const $t = document.getElementById('title'), $s = document.getElementById('sub');
+      if (!token) {
+        $t.textContent = 'Токен не найден';
+        $s.textContent = 'Открой ссылку из письма ещё раз.';
+        return;
+      }
+      const r = await api('POST', '/api/auth/verify', { token });
+      if (r.ok) {
+        $t.textContent = 'Email подтверждён ✓';
+        $s.textContent = 'Все модули OmnixOS открыты.';
+        document.getElementById('cta').style.display = 'inline-flex';
+      } else {
+        $t.textContent = 'Ссылка недействительна';
+        $s.textContent = 'Возможно, истёк срок или ссылка уже использована.';
+        document.getElementById('foot').style.display = 'block';
+      }
+    })();
+  </script>
+</body>
+</html>

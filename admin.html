@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админ-панель — OmnixOS</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a href="/" class="brand">
+        <img src="logo.svg" alt="" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </a>
+
+      <div class="side-section">админ</div>
+      <a class="side-link active" data-tab="stats"><span class="ic">◎</span> Статистика</a>
+      <a class="side-link" data-tab="users"><span class="ic">◐</span> Пользователи</a>
+      <a class="side-link" data-tab="tools"><span class="ic">▦</span> Инструменты</a>
+      <a class="side-link" data-tab="groups"><span class="ic">∞</span> Группы доступа</a>
+      <a class="side-link" data-tab="logs"><span class="ic">↻</span> Логи действий</a>
+
+      <div class="side-foot">
+        <a href="dashboard.html" style="color: var(--cyan);">→ В личный кабинет</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Меню">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
+        <h1 id="page-title">Статистика</h1>
+        <div class="topbar-actions">
+          <span class="tag tag-admin">Администратор</span>
+          <div class="user-pill">
+            <span class="avatar" id="topbar-avatar">A</span>
+            <span id="topbar-name">…</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="logout-btn">Выйти</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <section class="tab-panel" data-panel="stats">
+        <div class="grid cols-4" style="margin-bottom:24px">
+          <div class="card stat"><div class="label">Всего пользователей</div><div class="value" id="s-users">—</div></div>
+          <div class="card stat"><div class="label">Активные</div><div class="value" id="s-active" style="color:var(--green)">—</div></div>
+          <div class="card stat"><div class="label">Заблокированы</div><div class="value" id="s-blocked" style="color:var(--red)">—</div></div>
+          <div class="card stat"><div class="label">Админов</div><div class="value" id="s-admins">—</div></div>
+        </div>
+        <div class="grid cols-4">
+          <div class="card stat"><div class="label">Всего модулей</div><div class="value" id="s-tools">—</div></div>
+          <div class="card stat"><div class="label">Включено</div><div class="value" id="s-tools-on" style="color:var(--green)">—</div></div>
+          <div class="card stat"><div class="label">Групп доступа</div><div class="value" id="s-groups">—</div></div>
+          <div class="card stat"><div class="label">Новых за 24ч</div><div class="value" id="s-new" style="color:var(--violet)">—</div></div>
+        </div>
+        <div class="card" style="margin-top:24px">
+          <h2>Активность за 24 часа</h2>
+          <p class="muted">Действий зафиксировано: <strong id="s-actions" style="color:var(--text)">—</strong></p>
+        </div>
+      </section>
+
+      <!-- Users -->
+      <section class="tab-panel" data-panel="users" hidden>
+        <div class="card">
+          <div class="toolbar">
+            <input class="input" id="u-search" placeholder="Поиск по email или имени" />
+            <button class="btn" id="u-refresh">Обновить</button>
+            <span class="muted" id="u-total"></span>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Email</th><th>Имя</th><th>Роль</th><th>Статус</th>
+                <th>Создан</th><th>Последний вход</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="u-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Tools -->
+      <section class="tab-panel" data-panel="tools" hidden>
+        <div class="card">
+          <div class="toolbar" style="justify-content: space-between">
+            <h2 style="margin:0">Все инструменты платформы</h2>
+            <button class="btn btn-primary" id="t-add-btn">+ Новый инструмент</button>
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>Slug</th><th>Название</th><th>Описание</th><th>Статус</th><th></th></tr>
+            </thead>
+            <tbody id="t-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Groups -->
+      <section class="tab-panel" data-panel="groups" hidden>
+        <div class="card">
+          <div class="toolbar" style="justify-content: space-between">
+            <h2 style="margin:0">Группы доступа</h2>
+            <button class="btn btn-primary" id="g-add-btn">+ Новая группа</button>
+          </div>
+          <p class="muted">Группа — это набор инструментов. Назначь группу пользователю — он получит все инструменты из неё.</p>
+          <table class="table">
+            <thead>
+              <tr><th>Название</th><th>Инструменты</th><th>Участников</th><th></th></tr>
+            </thead>
+            <tbody id="g-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Logs -->
+      <section class="tab-panel" data-panel="logs" hidden>
+        <div class="card">
+          <h2>Журнал действий</h2>
+          <p class="muted">Кто что сделал. Для аудита и отладки.</p>
+          <table class="table" style="margin-top:14px">
+            <thead><tr><th>Время</th><th>Кто</th><th>Действие</th><th>Объект</th><th>IP</th></tr></thead>
+            <tbody id="l-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script src="auth.js"></script>
+  <script>
+  (async () => {
+    const me = await api('GET', '/api/auth/me');
+    if (!me.ok) return location.href = 'login.html';
+    if (me.user.role !== 'admin') return location.href = 'dashboard.html';
+    document.getElementById('topbar-name').textContent = me.user.name || me.user.email;
+    document.getElementById('topbar-avatar').textContent = (me.user.name || me.user.email)[0].toUpperCase();
+
+    // Tabs
+    const links = document.querySelectorAll('[data-tab]');
+    const panels = document.querySelectorAll('[data-panel]');
+    function activate(name) {
+      links.forEach(l => l.classList.toggle('active', l.dataset.tab === name));
+      panels.forEach(p => p.hidden = p.dataset.panel !== name);
+      document.getElementById('page-title').textContent = ({
+        stats: 'Статистика', users: 'Пользователи', tools: 'Инструменты',
+        groups: 'Группы доступа', logs: 'Логи действий',
+      })[name];
+      ({ stats: loadStats, users: loadUsers, tools: loadTools, groups: loadGroups, logs: loadLogs })[name]?.();
+    }
+    links.forEach(l => l.addEventListener('click', (e) => {
+      if (l.tagName === 'A' && l.getAttribute('href')) return;
+      e.preventDefault(); activate(l.dataset.tab);
+    }));
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await api('POST', '/api/auth/logout');
+      location.href = 'login.html';
+    });
+
+    // ============ Stats ============
+    async function loadStats() {
+      const r = await api('GET', '/api/admin/stats');
+      if (!r.ok) return;
+      document.getElementById('s-users').textContent = r.users_total;
+      document.getElementById('s-active').textContent = r.users_active;
+      document.getElementById('s-blocked').textContent = r.users_blocked;
+      document.getElementById('s-admins').textContent = r.admins;
+      document.getElementById('s-tools').textContent = r.tools_total;
+      document.getElementById('s-tools-on').textContent = r.tools_enabled;
+      document.getElementById('s-groups').textContent = r.groups_total;
+      document.getElementById('s-new').textContent = r.new_today;
+      document.getElementById('s-actions').textContent = r.actions_today;
+    }
+
+    // ============ Users ============
+    let allTools = [], allGroups = [];
+
+    async function loadUsers() {
+      const q = document.getElementById('u-search').value.trim();
+      const r = await api('GET', `/api/admin/users?q=${encodeURIComponent(q)}`);
+      if (!r.ok) return;
+      document.getElementById('u-total').textContent = `Всего: ${r.total}`;
+      const tbody = document.getElementById('u-tbody');
+      tbody.innerHTML = r.items.map(u => `
+        <tr>
+          <td><code style="font-size:12px">${u.id}</code></td>
+          <td>${esc(u.email)}</td>
+          <td>${esc(u.name || '—')}</td>
+          <td><span class="tag tag-${u.role}">${u.role}</span></td>
+          <td><span class="tag tag-${u.status}">${u.status === 'active' ? 'актив' : 'блок'}</span></td>
+          <td class="muted">${fmtDate(u.created_at)}</td>
+          <td class="muted">${fmtDate(u.last_login_at)}</td>
+          <td class="row-actions">
+            <button class="btn btn-sm" data-edit="${u.id}">Управлять</button>
+            <button class="btn btn-sm btn-danger" data-del="${u.id}">×</button>
+          </td>
+        </tr>
+      `).join('') || `<tr><td colspan="8" class="muted">Пользователи не найдены.</td></tr>`;
+
+      tbody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editUser(b.dataset.edit)));
+      tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => deleteUser(b.dataset.del)));
+    }
+
+    document.getElementById('u-refresh').addEventListener('click', loadUsers);
+    document.getElementById('u-search').addEventListener('input', debounce(loadUsers, 300));
+
+    async function editUser(id) {
+      const [det, tools, groups] = await Promise.all([
+        api('GET', `/api/admin/users/${id}`),
+        api('GET', '/api/admin/tools'),
+        api('GET', '/api/admin/groups'),
+      ]);
+      if (!det.ok) return toast('Не найден', 'error');
+      allTools = tools.items || []; allGroups = groups.items || [];
+      const u = det.user;
+      const userToolIds = new Set((det.tools || []).map(t => t.id));
+      const userGroupIds = new Set((det.groups || []).map(g => g.id));
+
+      openModal(`
+        <h2>${esc(u.email)}</h2>
+        <div class="tabs">
+          <button class="tab active" data-mt="info">Профиль</button>
+          <button class="tab" data-mt="access">Доступы</button>
+        </div>
+        <div data-mp="info">
+          <div class="field">
+            <label>Имя</label>
+            <input class="input" id="m-name" value="${esc(u.name || '')}" />
+          </div>
+          <div class="field">
+            <label>Роль</label>
+            <select class="input" id="m-role">
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Статус</label>
+            <select class="input" id="m-status">
+              <option value="active" ${u.status === 'active' ? 'selected' : ''}>активен</option>
+              <option value="blocked" ${u.status === 'blocked' ? 'selected' : ''}>заблокирован</option>
+            </select>
+          </div>
+          <p class="muted" style="font-size:12px">ID: ${u.id} · создан ${fmtDate(u.created_at)} · email подтверждён: ${u.email_verified ? 'да' : 'нет'}</p>
+        </div>
+        <div data-mp="access" hidden>
+          <h3>Прямые доступы к инструментам</h3>
+          <div class="grid cols-2" style="margin-bottom:16px">
+            ${allTools.map(t => `
+              <label class="checkbox">
+                <input type="checkbox" data-tool="${t.id}" ${userToolIds.has(t.id) ? 'checked' : ''} ${!t.enabled ? 'disabled' : ''}/>
+                <span>${esc(t.name)} ${!t.enabled ? '<span class="tag tag-disabled">off</span>' : ''}</span>
+              </label>
+            `).join('')}
+          </div>
+          <h3>Группы</h3>
+          <div class="grid cols-2">
+            ${allGroups.length ? allGroups.map(g => `
+              <label class="checkbox">
+                <input type="checkbox" data-group="${g.id}" ${userGroupIds.has(g.id) ? 'checked' : ''}/>
+                <span>${esc(g.name)} <span class="muted">${g.tools || ''}</span></span>
+              </label>
+            `).join('') : '<p class="muted">Групп пока нет. Создай в разделе «Группы доступа».</p>'}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" id="m-cancel">Отмена</button>
+          <button class="btn btn-primary" id="m-save">Сохранить</button>
+        </div>
+      `);
+
+      document.querySelectorAll('.modal [data-mt]').forEach(t => t.addEventListener('click', () => {
+        document.querySelectorAll('.modal [data-mt]').forEach(x => x.classList.toggle('active', x === t));
+        document.querySelectorAll('.modal [data-mp]').forEach(p => p.hidden = p.dataset.mp !== t.dataset.mt);
+      }));
+
+      document.getElementById('m-cancel').onclick = closeModal;
+      document.getElementById('m-save').onclick = async () => {
+        const patch = await api('PATCH', `/api/admin/users/${id}`, {
+          name: document.getElementById('m-name').value,
+          role: document.getElementById('m-role').value,
+          status: document.getElementById('m-status').value,
+        });
+        if (!patch.ok) return toast('Не удалось сохранить', 'error');
+
+        const toolIds = [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool);
+        const groupIds = [...document.querySelectorAll('[data-group]:checked')].map(c => +c.dataset.group);
+        await api('PUT', `/api/admin/users/${id}/tools`, { tool_ids: toolIds });
+        await api('PUT', `/api/admin/users/${id}/groups`, { group_ids: groupIds });
+
+        toast('Сохранено', 'success'); closeModal(); loadUsers();
+      };
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Удалить пользователя? Действие необратимо.')) return;
+      const r = await api('DELETE', `/api/admin/users/${id}`);
+      if (r.ok) { toast('Удалён', 'success'); loadUsers(); }
+      else toast(r.error === 'cant_delete_self' ? 'Нельзя удалить себя' : 'Ошибка', 'error');
+    }
+
+    // ============ Tools ============
+    async function loadTools() {
+      const r = await api('GET', '/api/admin/tools');
+      if (!r.ok) return;
+      const tbody = document.getElementById('t-tbody');
+      tbody.innerHTML = r.items.map(t => `
+        <tr>
+          <td><code style="font-size:12px">${esc(t.slug)}</code></td>
+          <td>${esc(t.name)}</td>
+          <td class="muted">${esc(t.description || '—')}</td>
+          <td><span class="tag tag-${t.enabled ? 'active' : 'disabled'}">${t.enabled ? 'вкл' : 'выкл'}</span></td>
+          <td class="row-actions">
+            <button class="btn btn-sm" data-toggle="${t.id}" data-state="${t.enabled}">${t.enabled ? 'Отключить' : 'Включить'}</button>
+            <button class="btn btn-sm btn-danger" data-del="${t.id}">×</button>
+          </td>
+        </tr>
+      `).join('') || `<tr><td colspan="5" class="muted">Инструментов нет.</td></tr>`;
+
+      tbody.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
+        await api('PATCH', `/api/admin/tools/${b.dataset.toggle}`, { enabled: b.dataset.state === '0' ? 1 : 0 });
+        loadTools();
+      }));
+      tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Удалить инструмент? Будут отозваны все доступы.')) return;
+        await api('DELETE', `/api/admin/tools/${b.dataset.del}`);
+        loadTools();
+      }));
+    }
+
+    document.getElementById('t-add-btn').addEventListener('click', () => {
+      openModal(`
+        <h2>Новый инструмент</h2>
+        <div class="field"><label>Slug (англ., уникальный)</label><input class="input" id="nt-slug" /></div>
+        <div class="field"><label>Название</label><input class="input" id="nt-name" /></div>
+        <div class="field"><label>Описание</label><textarea class="input" id="nt-desc" rows="3"></textarea></div>
+        <div class="field"><label>Иконка (символ)</label><input class="input" id="nt-icon" maxlength="2" /></div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" id="nt-cancel">Отмена</button>
+          <button class="btn btn-primary" id="nt-save">Создать</button>
+        </div>
+      `);
+      document.getElementById('nt-cancel').onclick = closeModal;
+      document.getElementById('nt-save').onclick = async () => {
+        const r = await api('POST', '/api/admin/tools', {
+          slug: document.getElementById('nt-slug').value.trim(),
+          name: document.getElementById('nt-name').value.trim(),
+          description: document.getElementById('nt-desc').value.trim(),
+          icon: document.getElementById('nt-icon').value.trim(),
+        });
+        if (r.ok) { toast('Создан', 'success'); closeModal(); loadTools(); }
+        else toast(r.error === 'slug_taken' ? 'Slug уже занят' : 'Ошибка', 'error');
+      };
+    });
+
+    // ============ Groups ============
+    async function loadGroups() {
+      const [g, t] = await Promise.all([
+        api('GET', '/api/admin/groups'),
+        api('GET', '/api/admin/tools'),
+      ]);
+      if (!g.ok) return;
+      allTools = t.items || [];
+      const tbody = document.getElementById('g-tbody');
+      tbody.innerHTML = g.items.map(gr => `
+        <tr>
+          <td><strong>${esc(gr.name)}</strong>${gr.description ? `<div class="muted" style="font-size:12px">${esc(gr.description)}</div>` : ''}</td>
+          <td class="muted">${esc(gr.tools || '—')}</td>
+          <td>${gr.members}</td>
+          <td class="row-actions">
+            <button class="btn btn-sm" data-edit="${gr.id}">Инструменты</button>
+            <button class="btn btn-sm btn-danger" data-del="${gr.id}">×</button>
+          </td>
+        </tr>
+      `).join('') || `<tr><td colspan="4" class="muted">Групп пока нет.</td></tr>`;
+
+      tbody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editGroup(b.dataset.edit, g.items.find(x => x.id == b.dataset.edit))));
+      tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Удалить группу?')) return;
+        await api('DELETE', `/api/admin/groups/${b.dataset.del}`);
+        loadGroups();
+      }));
+    }
+
+    function editGroup(id, gr) {
+      const currentSlugs = new Set((gr.tools || '').split(',').filter(Boolean));
+      openModal(`
+        <h2>${esc(gr.name)}</h2>
+        <p class="muted">Выбери инструменты, которые получат участники группы.</p>
+        <div class="grid cols-2" style="margin-top:14px">
+          ${allTools.map(t => `
+            <label class="checkbox">
+              <input type="checkbox" data-tool="${t.id}" data-slug="${t.slug}" ${currentSlugs.has(t.slug) ? 'checked' : ''}/>
+              <span>${esc(t.name)}</span>
+            </label>
+          `).join('')}
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" id="gm-cancel">Отмена</button>
+          <button class="btn btn-primary" id="gm-save">Сохранить</button>
+        </div>
+      `);
+      document.getElementById('gm-cancel').onclick = closeModal;
+      document.getElementById('gm-save').onclick = async () => {
+        const ids = [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool);
+        const r = await api('PUT', `/api/admin/groups/${id}/tools`, { tool_ids: ids });
+        if (r.ok) { toast('Сохранено', 'success'); closeModal(); loadGroups(); }
+      };
+    }
+
+    document.getElementById('g-add-btn').addEventListener('click', async () => {
+      const t = await api('GET', '/api/admin/tools'); allTools = t.items || [];
+      openModal(`
+        <h2>Новая группа</h2>
+        <div class="field"><label>Название</label><input class="input" id="ng-name" /></div>
+        <div class="field"><label>Описание</label><input class="input" id="ng-desc" /></div>
+        <div class="field"><label>Инструменты в группе</label></div>
+        <div class="grid cols-2">
+          ${allTools.map(t => `
+            <label class="checkbox">
+              <input type="checkbox" data-tool="${t.id}" />
+              <span>${esc(t.name)}</span>
+            </label>
+          `).join('')}
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" id="ng-cancel">Отмена</button>
+          <button class="btn btn-primary" id="ng-save">Создать</button>
+        </div>
+      `);
+      document.getElementById('ng-cancel').onclick = closeModal;
+      document.getElementById('ng-save').onclick = async () => {
+        const ids = [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool);
+        const r = await api('POST', '/api/admin/groups', {
+          name: document.getElementById('ng-name').value.trim(),
+          description: document.getElementById('ng-desc').value.trim(),
+          tool_ids: ids,
+        });
+        if (r.ok) { toast('Создана', 'success'); closeModal(); loadGroups(); }
+        else toast(r.error === 'name_taken' ? 'Название уже занято' : 'Ошибка', 'error');
+      };
+    });
+
+    // ============ Logs ============
+    async function loadLogs() {
+      const r = await api('GET', '/api/admin/logs?limit=200');
+      if (!r.ok) return;
+      const tbody = document.getElementById('l-tbody');
+      tbody.innerHTML = r.items.map(l => `
+        <tr>
+          <td class="muted">${fmtDate(l.created_at)}</td>
+          <td>${esc(l.actor_email || '—')}</td>
+          <td><code style="font-size:12px">${esc(l.action)}</code></td>
+          <td>${esc(l.target || '—')}</td>
+          <td class="muted" style="font-family:'JetBrains Mono', monospace; font-size:11px">${esc(l.ip || '')}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="5" class="muted">Логи пусты.</td></tr>`;
+    }
+
+    // ============ Modal infra ============
+    function openModal(html) {
+      const root = document.getElementById('modal-root');
+      root.innerHTML = `<div class="modal-bg"><div class="modal">${html}</div></div>`;
+      root.querySelector('.modal-bg').addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-bg')) closeModal();
+      });
+    }
+    function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
+
+    function debounce(fn, ms) {
+      let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); };
+    }
+
+    // Initial
+    loadStats();
+  })();
+  </script>
+</body>
+</html>

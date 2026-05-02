@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Восстановление пароля — OmnixOS</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="auth-wrap">
+    <section class="auth-card">
+      <a href="/" class="brand">
+        <img src="logo.svg" alt="" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </a>
+      <h1>Восстановление</h1>
+      <p class="auth-sub">Введи email — пришлём ссылку для сброса пароля</p>
+      <form id="forgot-form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Отправить ссылку</button>
+      </form>
+      <p class="auth-foot">
+        <a href="login.html">← Вернуться ко входу</a>
+      </p>
+    </section>
+  </main>
+  <script src="auth.js"></script>
+  <script>
+    document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await api('POST', '/api/auth/forgot', { email: fd.get('email') });
+      toast('Если такой email существует — ссылка отправлена. Проверь консоль сервера в dev-режиме.', 'success');
+    });
+  </script>
+</body>
+</html>

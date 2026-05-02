@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Личный кабинет — OmnixOS</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a href="/" class="brand">
+        <img src="logo.svg" alt="" />
+        <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
+      </a>
+
+      <div class="side-section">кабинет</div>
+      <a class="side-link active" data-tab="overview"><span class="ic">◎</span> Обзор</a>
+      <a class="side-link" data-tab="tools"><span class="ic">▦</span> Инструменты</a>
+      <a class="side-link" data-tab="notifications"><span class="ic">⌥</span> Уведомления <span id="unread-pill" class="tag tag-admin" style="display:none; margin-left:auto;">0</span></a>
+      <a class="side-link" data-tab="history"><span class="ic">↻</span> История</a>
+
+      <div class="side-section">настройки</div>
+      <a class="side-link" data-tab="profile"><span class="ic">◐</span> Профиль</a>
+      <a class="side-link" data-tab="subscription"><span class="ic">★</span> Подписка</a>
+
+      <div class="side-foot">
+        <a id="admin-link" href="admin.html" style="display:none; color: var(--violet);">→ Админ-панель</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Меню">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
+        <h1 id="page-title">Обзор</h1>
+        <div class="topbar-actions">
+          <div style="position:relative">
+            <button class="bell" id="bell" title="Уведомления">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8z"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span class="badge" id="bell-badge" style="display:none">0</span>
+            </button>
+            <div class="dropdown hidden" id="bell-dropdown">
+              <div class="dropdown-head">
+                <strong>Уведомления</strong>
+                <button class="btn btn-sm btn-ghost" id="read-all-btn">Прочитать все</button>
+              </div>
+              <div id="bell-list" class="notif-list"></div>
+            </div>
+          </div>
+
+          <div class="user-pill">
+            <span class="avatar" id="topbar-avatar">?</span>
+            <span id="topbar-name">…</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="logout-btn">Выйти</button>
+        </div>
+      </div>
+
+      <!-- Overview -->
+      <section class="tab-panel" data-panel="overview">
+        <div class="grid cols-3" style="margin-bottom:24px">
+          <div class="card stat">
+            <div class="label">Доступных модулей</div>
+            <div class="value" id="ov-tools">—</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Непрочитанных</div>
+            <div class="value" id="ov-unread">—</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Тариф</div>
+            <div class="value" id="ov-plan">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Быстрый старт</h2>
+          <p class="muted">Открой любой подключённый инструмент или начни с дашборда.</p>
+          <div id="ov-tools-grid" class="grid cols-2" style="margin-top:14px"></div>
+        </div>
+      </section>
+
+      <!-- Tools -->
+      <section class="tab-panel" data-panel="tools" hidden>
+        <div class="card">
+          <h2>Подключённые инструменты</h2>
+          <p class="muted">Доступ выдаёт администратор. Если чего-то не хватает — попроси расширить.</p>
+          <div id="tools-grid" class="grid cols-2" style="margin-top:18px"></div>
+        </div>
+      </section>
+
+      <!-- Notifications -->
+      <section class="tab-panel" data-panel="notifications" hidden>
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+            <h2 style="margin:0">Все уведомления</h2>
+            <button class="btn btn-sm" id="page-read-all">Прочитать все</button>
+          </div>
+          <div id="notif-page-list" class="notif-list"></div>
+        </div>
+      </section>
+
+      <!-- History -->
+      <section class="tab-panel" data-panel="history" hidden>
+        <div class="card">
+          <h2>История действий</h2>
+          <p class="muted">Журнал твоих авторизаций и изменений. Хранится 100 последних записей.</p>
+          <table class="table" style="margin-top:14px">
+            <thead><tr><th>Время</th><th>Действие</th><th>Объект</th></tr></thead>
+            <tbody id="history-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Profile -->
+      <section class="tab-panel" data-panel="profile" hidden>
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Профиль</h2>
+            <form id="profile-form">
+              <div class="field">
+                <label>Email</label>
+                <input id="pf-email" type="email" disabled />
+              </div>
+              <div class="field">
+                <label>Имя</label>
+                <input id="pf-name" name="name" type="text" />
+              </div>
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </form>
+          </div>
+          <div class="card">
+            <h2>Сменить пароль</h2>
+            <form id="pwd-form">
+              <div class="field">
+                <label>Текущий пароль</label>
+                <input name="current" type="password" required autocomplete="current-password" />
+              </div>
+              <div class="field">
+                <label>Новый пароль (мин. 8)</label>
+                <input name="next" type="password" minlength="8" required autocomplete="new-password" />
+              </div>
+              <button type="submit" class="btn btn-primary">Обновить пароль</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Subscription -->
+      <section class="tab-panel" data-panel="subscription" hidden>
+        <div class="card">
+          <h2>Тариф и лимиты</h2>
+          <div class="grid cols-3" style="margin-top:14px">
+            <div class="stat"><div class="label">Тариф</div><div class="value" id="sub-plan">—</div></div>
+            <div class="stat"><div class="label">С нами с</div><div class="value" style="font-size:18px" id="sub-since">—</div></div>
+            <div class="stat"><div class="label">Лимит модулей</div><div class="value" id="sub-limit">—</div></div>
+          </div>
+          <p class="muted" style="margin-top:18px">Платные тарифы появятся после запуска. Сейчас — все модули бесплатно по доступу администратора.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+  (async () => {
+    // Auth check
+    const me = await api('GET', '/api/auth/me');
+    if (!me.ok) return location.href = 'login.html';
+    const user = me.user;
+
+    document.getElementById('topbar-name').textContent = user.name || user.email;
+    document.getElementById('topbar-avatar').textContent = (user.name || user.email)[0].toUpperCase();
+    if (user.role === 'admin') document.getElementById('admin-link').style.display = 'block';
+
+    // Tabs
+    const links = document.querySelectorAll('[data-tab]');
+    const panels = document.querySelectorAll('[data-panel]');
+    function activate(name) {
+      links.forEach(l => l.classList.toggle('active', l.dataset.tab === name));
+      panels.forEach(p => p.hidden = p.dataset.panel !== name);
+      document.getElementById('page-title').textContent = ({
+        overview: 'Обзор', tools: 'Инструменты', notifications: 'Уведомления',
+        history: 'История', profile: 'Профиль', subscription: 'Подписка',
+      })[name];
+      if (name === 'tools') loadTools();
+      if (name === 'notifications') loadNotificationsPage();
+      if (name === 'history') loadHistory();
+      if (name === 'profile') loadProfile();
+      if (name === 'subscription') loadSubscription();
+    }
+    links.forEach(l => l.addEventListener('click', (e) => {
+      if (l.tagName === 'A' && l.getAttribute('href')) return;
+      e.preventDefault(); activate(l.dataset.tab);
+    }));
+
+    // Logout
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await api('POST', '/api/auth/logout');
+      location.href = 'login.html';
+    });
+
+    // Notifications bell
+    const bell = document.getElementById('bell');
+    const dropdown = document.getElementById('bell-dropdown');
+    bell.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.toggle('hidden'); });
+    document.addEventListener('click', () => dropdown.classList.add('hidden'));
+    dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+    document.getElementById('read-all-btn').addEventListener('click', async () => {
+      await api('POST', '/api/user/notifications/read-all');
+      loadNotifications();
+    });
+    document.getElementById('page-read-all').addEventListener('click', async () => {
+      await api('POST', '/api/user/notifications/read-all');
+      loadNotifications(); loadNotificationsPage();
+    });
+
+    async function loadNotifications() {
+      const r = await api('GET', '/api/user/notifications');
+      if (!r.ok) return;
+      const badge = document.getElementById('bell-badge');
+      const pill = document.getElementById('unread-pill');
+      if (r.unread > 0) {
+        badge.textContent = r.unread; badge.style.display = 'grid';
+        pill.textContent = r.unread; pill.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none'; pill.style.display = 'none';
+      }
+      const list = document.getElementById('bell-list');
+      list.innerHTML = r.items.slice(0, 8).map(n => `
+        <div class="notif ${n.read ? '' : 'unread'}" data-id="${n.id}">
+          <div><strong>${esc(n.title)}</strong>${n.body ? `<span class="muted">${esc(n.body)}</span>` : ''}</div>
+          <span class="meta">${fmtDate(n.created_at)}</span>
+        </div>
+      `).join('') || '<p class="muted" style="padding:8px">Нет уведомлений</p>';
+      list.querySelectorAll('.notif').forEach(el => el.addEventListener('click', async () => {
+        await api('POST', `/api/user/notifications/${el.dataset.id}/read`);
+        loadNotifications();
+      }));
+      document.getElementById('ov-unread').textContent = r.unread;
+    }
+
+    async function loadNotificationsPage() {
+      const r = await api('GET', '/api/user/notifications');
+      if (!r.ok) return;
+      const list = document.getElementById('notif-page-list');
+      list.innerHTML = r.items.map(n => `
+        <div class="notif ${n.read ? '' : 'unread'}">
+          <div><strong>${esc(n.title)}</strong>${n.body ? `<span class="muted">${esc(n.body)}</span>` : ''}</div>
+          <span class="meta">${fmtDate(n.created_at)}</span>
+        </div>
+      `).join('') || '<p class="muted">Уведомлений пока нет.</p>';
+    }
+
+    async function loadTools() {
+      const r = await api('GET', '/api/user/tools');
+      if (!r.ok) return;
+      renderToolsGrid(document.getElementById('tools-grid'), r.tools);
+      renderToolsGrid(document.getElementById('ov-tools-grid'), r.tools.slice(0, 4));
+      document.getElementById('ov-tools').textContent = r.tools.length;
+    }
+
+    function renderToolsGrid(target, tools) {
+      if (!target) return;
+      if (!tools.length) {
+        target.innerHTML = `<div class="tool-empty">Администратор пока не выдал доступ ни к одному модулю.</div>`;
+        return;
+      }
+      target.innerHTML = tools.map(t => `
+        <div class="tool-card" data-slug="${t.slug}">
+          <div class="ic">${esc(t.icon || t.slug[0].toUpperCase())}</div>
+          <div>
+            <h4>${esc(t.name)}</h4>
+            <p>${esc(t.description || '')}</p>
+          </div>
+        </div>
+      `).join('');
+      target.querySelectorAll('.tool-card').forEach(el => el.addEventListener('click', () => {
+        location.href = `tool.html?slug=${el.dataset.slug}`;
+      }));
+    }
+
+    async function loadHistory() {
+      const r = await api('GET', '/api/user/history');
+      if (!r.ok) return;
+      const tbody = document.getElementById('history-tbody');
+      tbody.innerHTML = r.items.map(it => `
+        <tr>
+          <td>${fmtDate(it.created_at)}</td>
+          <td><code style="font-family: 'JetBrains Mono', monospace; font-size:12px">${esc(it.action)}</code></td>
+          <td>${esc(it.target || '—')}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="3" class="muted">Действий пока нет.</td></tr>`;
+    }
+
+    async function loadProfile() {
+      const r = await api('GET', '/api/user/profile');
+      if (!r.ok) return;
+      document.getElementById('pf-email').value = r.user.email;
+      document.getElementById('pf-name').value = r.user.name || '';
+    }
+
+    async function loadSubscription() {
+      const r = await api('GET', '/api/user/subscription');
+      if (!r.ok) return;
+      document.getElementById('sub-plan').textContent = r.plan.toUpperCase();
+      document.getElementById('sub-since').textContent = fmtDate(r.since);
+      document.getElementById('sub-limit').textContent = r.limits.tools;
+      document.getElementById('ov-plan').textContent = r.plan.toUpperCase();
+    }
+
+    document.getElementById('profile-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const r = await api('PATCH', '/api/user/profile', { name: document.getElementById('pf-name').value });
+      toast(r.ok ? 'Сохранено' : 'Ошибка', r.ok ? 'success' : 'error');
+    });
+
+    document.getElementById('pwd-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const r = await api('POST', '/api/user/password', { current: fd.get('current'), next: fd.get('next') });
+      if (r.ok) { toast('Пароль обновлён', 'success'); e.target.reset(); }
+      else toast(r.error === 'invalid_current' ? 'Текущий пароль неверный' : 'Ошибка', 'error');
+    });
+
+    // Initial load
+    loadNotifications();
+    loadTools();
+    loadSubscription();
+  })();
+  </script>
+</body>
+</html>
