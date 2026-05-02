@@ -6,7 +6,7 @@
   <title>OmnixOS — инструмент</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css" />
+  <link rel="stylesheet" href="app.css?v=2" />
 </head>
 <body>
   <div class="shell">
@@ -48,8 +48,8 @@
 
   <div id="modal-root"></div>
 
-  <script src="auth.js"></script>
-  <script src="tools.js"></script>
+  <script src="auth.js?v=2"></script>
+  <script src="tools.js?v=2"></script>
   <script>
   (async () => {
     const me = await api('GET', '/api/auth/me');
