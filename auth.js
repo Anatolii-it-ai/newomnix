@@ -8,6 +8,40 @@ window.API_BASE = (() => {
   return '';
 })();
 
+// «Сервер просыпается» overlay — для cold start free-tier Render (15 мин idle = 30-60 сек ожидание).
+let __wakeOverlay = null;
+function showWakeOverlay() {
+  if (__wakeOverlay) return;
+  const el = document.createElement('div');
+  el.id = 'omnix-wake';
+  el.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(11, 11, 20, 0.92); backdrop-filter: blur(8px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; font: 600 16px/1.5 Manrope, system-ui, sans-serif;
+    text-align: center; padding: 40px 20px;
+  `;
+  el.innerHTML = `
+    <div style="width: 56px; height: 56px; border: 4px solid rgba(124,92,255,0.3); border-top-color: #7C5CFF; border-radius: 50%; animation: omnix-spin 0.8s linear infinite; margin-bottom: 24px;"></div>
+    <div style="font-size: 18px; margin-bottom: 8px;">Сервер просыпается…</div>
+    <div style="font-size: 13px; color: rgba(255,255,255,0.6); max-width: 360px;">Бесплатный план Render засыпает через 15 минут простоя. Первый запрос займёт ~30-60 секунд — потом будет шустро.</div>
+    <style>@keyframes omnix-spin { to { transform: rotate(360deg); } }</style>
+  `;
+  document.body.appendChild(el);
+  __wakeOverlay = el;
+}
+function hideWakeOverlay() {
+  if (!__wakeOverlay) return;
+  __wakeOverlay.style.transition = 'opacity .3s';
+  __wakeOverlay.style.opacity = '0';
+  setTimeout(() => { __wakeOverlay?.remove(); __wakeOverlay = null; }, 300);
+}
+
+// Прогрев бэкенда сразу при загрузке страницы — чтобы к моменту клика юзера он уже проснулся.
+if (window.API_BASE) {
+  fetch(window.API_BASE + '/healthz', { method: 'GET', mode: 'cors' }).catch(() => {});
+}
+
 // Lightweight client helpers — used by all auth/dashboard/admin pages
 window.api = async function api(method, url, body) {
   const init = {
@@ -20,12 +54,21 @@ window.api = async function api(method, url, body) {
     init.body = JSON.stringify(body);
   }
   const finalUrl = url.startsWith('/') ? (window.API_BASE + url) : url;
+
+  // Если запрос идёт > 2 секунд — показываем «сервер просыпается»
+  const slowTimer = setTimeout(showWakeOverlay, 2000);
+
   let res;
   try {
     res = await fetch(finalUrl, init);
   } catch {
+    clearTimeout(slowTimer);
+    hideWakeOverlay();
     return { ok: false, error: 'network' };
   }
+  clearTimeout(slowTimer);
+  hideWakeOverlay();
+
   let data = {};
   try { data = await res.json(); } catch {}
   if (!res.ok) return { ok: false, error: data.error || `http_${res.status}`, status: res.status, ...data };
