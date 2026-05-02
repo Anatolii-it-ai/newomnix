@@ -3,8 +3,7 @@
 window.API_BASE = (() => {
   const h = location.hostname;
   if (h.endsWith('.vercel.app') || h.endsWith('.netlify.app')) {
-    // ⬇⬇⬇ ЗАМЕНИ НА URL РЕНДЕР-БЭКЕНДА (без слэша в конце) ⬇⬇⬇
-    return 'https://REPLACE-WITH-RENDER-URL.onrender.com';
+    return 'https://omnix-backend-wig1.onrender.com';
   }
   return '';
 })();
