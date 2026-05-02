@@ -8,6 +8,16 @@ window.API_BASE = (() => {
   return '';
 })();
 
+// JWT в localStorage + заголовок Authorization — работает в incognito/без third-party cookies.
+const TOKEN_KEY = 'omx_token';
+window.getToken = () => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } };
+window.setToken = (t) => {
+  try {
+    if (t) localStorage.setItem(TOKEN_KEY, t);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+};
+
 // «Сервер просыпается» overlay — для cold start free-tier Render (15 мин idle = 30-60 сек ожидание).
 let __wakeOverlay = null;
 function showWakeOverlay() {
@@ -49,6 +59,8 @@ window.api = async function api(method, url, body) {
     credentials: 'include',
     headers: { Accept: 'application/json' },
   };
+  const tok = window.getToken();
+  if (tok) init.headers['Authorization'] = `Bearer ${tok}`;
   if (body && method !== 'GET') {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -71,7 +83,16 @@ window.api = async function api(method, url, body) {
 
   let data = {};
   try { data = await res.json(); } catch {}
-  if (!res.ok) return { ok: false, error: data.error || `http_${res.status}`, status: res.status, ...data };
+
+  // Авто-сохранение/очистка токена по auth-эндпоинтам
+  if (data && typeof data.token === 'string') window.setToken(data.token);
+  if (url === '/api/auth/logout' && res.ok) window.setToken(null);
+
+  if (!res.ok) {
+    // Если 401 — токен невалиден, чистим
+    if (res.status === 401) window.setToken(null);
+    return { ok: false, error: data.error || `http_${res.status}`, status: res.status, ...data };
+  }
   return { ok: true, ...data };
 };
 
