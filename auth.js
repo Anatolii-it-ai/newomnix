@@ -18,6 +18,27 @@ window.setToken = (t) => {
   } catch {}
 };
 
+// Если на странице логина/регистрации уже есть валидный токен — сразу в дашборд.
+window.requireGuest = async function requireGuest() {
+  if (!window.getToken()) return;
+  const r = await window.api('GET', '/api/auth/me');
+  if (r.ok) {
+    const next = new URLSearchParams(location.search).get('next') || 'dashboard.html';
+    location.replace(next);
+  }
+};
+
+// Помогает Chrome предложить сохранить пароль через Credential Management API.
+window.savePasswordCredential = async function savePasswordCredential(email, password, name) {
+  if (!window.PasswordCredential) return;
+  try {
+    const cred = new window.PasswordCredential({
+      id: email, password, name: name || email,
+    });
+    await navigator.credentials.store(cred);
+  } catch {}
+};
+
 // «Сервер просыпается» overlay — для cold start free-tier Render (15 мин idle = 30-60 сек ожидание).
 let __wakeOverlay = null;
 function showWakeOverlay() {
