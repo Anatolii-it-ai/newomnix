@@ -1,3 +1,14 @@
+// API base URL — для cross-origin (фронт на Vercel, бэк на Render).
+// На localhost / собственном домене бэкенда — пусто, идут относительные запросы.
+window.API_BASE = (() => {
+  const h = location.hostname;
+  if (h.endsWith('.vercel.app') || h.endsWith('.netlify.app')) {
+    // ⬇⬇⬇ ЗАМЕНИ НА URL РЕНДЕР-БЭКЕНДА (без слэша в конце) ⬇⬇⬇
+    return 'https://REPLACE-WITH-RENDER-URL.onrender.com';
+  }
+  return '';
+})();
+
 // Lightweight client helpers — used by all auth/dashboard/admin pages
 window.api = async function api(method, url, body) {
   const init = {
@@ -9,9 +20,10 @@ window.api = async function api(method, url, body) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
+  const finalUrl = url.startsWith('/') ? (window.API_BASE + url) : url;
   let res;
   try {
-    res = await fetch(url, init);
+    res = await fetch(finalUrl, init);
   } catch {
     return { ok: false, error: 'network' };
   }
@@ -45,19 +57,17 @@ window.fmtDate = function fmtDate(ts) {
   return d.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
 };
 
-// Show banner if API is unreachable (file://, static-only deploy, offline)
+// Banner: показывается если API_BASE не настроен (placeholder) или открыто через file://
 (function envGuard() {
   const isFile = location.protocol === 'file:';
-  const isNetlify = /\.netlify\.(app|com)$/i.test(location.hostname);
-  const isVercel = /\.vercel\.app$/i.test(location.hostname);
-  const isStaticHost = isNetlify || isVercel;
-  if (!isFile && !isStaticHost) return;
+  const apiNotConfigured = (window.API_BASE || '').includes('REPLACE-WITH-RENDER-URL');
+  if (!isFile && !apiNotConfigured) return;
 
   const banner = document.createElement('div');
   banner.style.cssText = `
     position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-    background: ${isStaticHost ? 'linear-gradient(135deg, #7C5CFF, #22D3EE)' : '#EF4444'};
-    color: ${isStaticHost ? '#0B0B14' : '#fff'};
+    background: ${isFile ? '#EF4444' : 'linear-gradient(135deg, #7C5CFF, #22D3EE)'};
+    color: ${isFile ? '#fff' : '#0B0B14'};
     padding: 12px 20px; text-align: center;
     font: 600 13px/1.4 Manrope, system-ui, sans-serif;
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
@@ -69,11 +79,8 @@ window.fmtDate = function fmtDate(ts) {
       (запусти <code style="background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px">npm start</code>)
     `;
   } else {
-    const hostName = isVercel ? 'Vercel' : 'Netlify';
     banner.innerHTML = `
-      <strong>DEMO</strong> · OmnixOS на ${hostName} — только лендинг.
-      Авторизация и 10 инструментов требуют Node-бэкенд.
-      Полная версия: <code style="background:rgba(0,0,0,0.15); padding:2px 6px; border-radius:4px">git clone</code> + <code style="background:rgba(0,0,0,0.15); padding:2px 6px; border-radius:4px">npm start</code>
+      <strong>SETUP</strong> · Бэкенд не подключён — пропиши URL Render-сервиса в <code style="background:rgba(0,0,0,0.15); padding:2px 6px; border-radius:4px">auth.js</code> (window.API_BASE).
     `;
   }
   document.addEventListener('DOMContentLoaded', () => document.body.prepend(banner));
