@@ -104,8 +104,11 @@
             </div>
           </div>
           <div class="card">
-            <h2 data-i18n="dashboard.today_title">Сегодня</h2>
-            <p class="muted" style="margin-top:-10px; margin-bottom:14px" data-i18n="dashboard.today_subtitle">Привычки и задачи на день</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:0">
+              <h2 data-i18n="dashboard.today_title" style="margin:0">Сегодня</h2>
+              <button id="today-add-btn" class="btn btn-primary btn-sm" type="button" data-i18n="dashboard.task_add">+ Задача</button>
+            </div>
+            <p class="muted" style="margin: 6px 0 14px" data-i18n="dashboard.today_subtitle">Привычки и задачи на день</p>
             <div class="today-list" id="ov-today"></div>
           </div>
         </div>
@@ -253,6 +256,11 @@
     });
     on($('search-btn'), 'click', () => {
       if (typeof openCommandPalette === 'function') openCommandPalette();
+    });
+    on($('today-add-btn'), 'click', () => {
+      const today = new Date();
+      const iso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      openTaskForm(null, null, () => loadOverviewData(), iso);
     });
     if (typeof renderLangSwitcher === 'function') renderLangSwitcher('lang-switch');
     if (typeof renderThemeToggle === 'function') renderThemeToggle('theme-toggle');
@@ -782,11 +790,12 @@
       });
     }
 
-    async function openTaskForm(task, defaultSphere, onClose) {
+    async function openTaskForm(task, defaultSphere, onClose, defaultDate) {
       const goals = await getGoalsForTasks();
       const root = document.getElementById('modal-root');
       const isEdit = !!task;
       const selSphere = task?.sphere ?? defaultSphere ?? '';
+      const initDate = task?.due_date || defaultDate || '';
 
       root.innerHTML = `
         <div class="modal-bg">
@@ -819,7 +828,7 @@
               </div>
               <div class="field">
                 <label>${esc(t('dashboard.task_due'))}</label>
-                <input class="input" type="date" id="tf-due" value="${task?.due_date || ''}"/>
+                <input class="input" type="date" id="tf-due" value="${initDate}"/>
               </div>
               <div class="field">
                 <label>${esc(t('dashboard.task_estimate'))}</label>
