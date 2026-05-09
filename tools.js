@@ -137,9 +137,15 @@ window.OmnixTools = {
         <div class="grid cols-2">
           <div class="card">
             <h2>Колесо баланса</h2>
-            <div id="wheel-mini" class="wheel-mini-grid">
-              <div id="wheel-svg-wrap" style="overflow:visible"></div>
-              <div id="wheel-controls"></div>
+            <p class="muted" style="margin-top:-10px; margin-bottom:14px">Самооценка по 8 сферам жизни</p>
+            <div class="wheel-mini">
+              ${wheelRes.items.map(s => `
+                <div class="wheel-mini-row">
+                  <span class="wheel-mini-name">${esc(s.sphere)}</span>
+                  <div class="wheel-mini-bar"><div class="wheel-mini-bar-fill" style="width: ${s.score}%"></div></div>
+                  <span class="wheel-mini-score">${s.score}</span>
+                </div>
+              `).join('')}
             </div>
           </div>
           <div class="card">
@@ -180,8 +186,6 @@ window.OmnixTools = {
           ` : '<p class="muted">Целей пока нет. Создай в модуле «Цели».</p>'}
         </div>
       `;
-
-      renderWheelSVG(wheelRes.items);
 
       c.querySelectorAll('.habit-chip').forEach(b => b.addEventListener('click', async () => {
         const done = await toggleHabitLog(b.dataset.h);
