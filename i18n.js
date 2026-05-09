@@ -1234,6 +1234,33 @@ document.addEventListener('DOMContentLoaded', () => {
   applyTranslations();
 });
 
+// =================== Theme (light / dark) ===================
+window.getTheme = function getTheme() {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+};
+window.setTheme = function setTheme(theme) {
+  if (theme !== 'light' && theme !== 'dark') return;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('omx-theme', theme);
+  document.dispatchEvent(new CustomEvent('themechange', { detail: { theme } }));
+};
+window.toggleTheme = function toggleTheme() {
+  setTheme(getTheme() === 'light' ? 'dark' : 'light');
+};
+// Renders a small sun/moon button that toggles theme into a given container or by id
+window.renderThemeToggle = function renderThemeToggle(target) {
+  const el = typeof target === 'string' ? document.getElementById(target) : target;
+  if (!el) return;
+  el.classList.add('theme-toggle');
+  el.setAttribute('aria-label', 'Theme');
+  el.setAttribute('title', getTheme() === 'light' ? 'Тёмная тема' : 'Светлая тема');
+  el.innerHTML = `<span class="icon-sun" aria-hidden="true">☀</span><span class="icon-moon" aria-hidden="true">☾</span>`;
+  el.addEventListener('click', () => {
+    toggleTheme();
+    el.setAttribute('title', getTheme() === 'light' ? 'Тёмная тема' : 'Светлая тема');
+  });
+};
+
 // Locale-aware date helpers (override fmtDate from auth.js if loaded before)
 const LANG_TO_LOCALE = { ru: 'ru-RU', ro: 'ro-RO', en: 'en-US' };
 window.localeOf = () => LANG_TO_LOCALE[CURRENT_LANG] || 'ru-RU';

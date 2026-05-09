@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=10" />
+  <link rel="stylesheet" href="app.css?v=11" />
   <style>
     .sphere-label rect {
       transition: fill .15s ease, stroke .15s ease;
@@ -50,6 +51,7 @@
         </button>
         <h1 id="page-title" data-i18n="nav.overview">Обзор</h1>
         <div class="topbar-actions">
+          <button id="theme-toggle" type="button"></button>
           <select class="lang-switch" id="lang-switch" aria-label="Language"></select>
           <div style="position:relative">
             <button class="bell" id="bell" data-i18n-title="nav.notifications" title="Уведомления">
@@ -200,6 +202,7 @@
   <script>
   (async () => {
     renderLangSwitcher('lang-switch');
+    renderThemeToggle('theme-toggle');
     const session = await requireAuth();
     if (!session) return;
 

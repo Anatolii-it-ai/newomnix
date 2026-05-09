@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title data-i18n="auth.reset_title">Новый пароль — OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=10" />
+  <link rel="stylesheet" href="app.css?v=11" />
 </head>
 <body>
   <main class="auth-wrap">
+    <button id="theme-toggle" type="button"></button>
     <select class="lang-switch" id="lang-switch" aria-label="Language"></select>
     <section class="auth-card">
       <a href="/" class="brand">
@@ -34,6 +36,7 @@
   <script src="auth.js?v=5"></script>
   <script>
     renderLangSwitcher('lang-switch');
+    renderThemeToggle('theme-toggle');
     (async () => {
       await new Promise(r => setTimeout(r, 300));
       const session = await omxGetSession();
