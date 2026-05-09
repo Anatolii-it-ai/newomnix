@@ -6,7 +6,7 @@
   <title>OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=8" />
+  <link rel="stylesheet" href="app.css?v=9" />
   <style>
     .sphere-label rect {
       transition: fill .15s ease, stroke .15s ease;
@@ -72,6 +72,8 @@
           <button class="btn btn-ghost btn-sm" id="logout-btn" data-i18n="auth.btn_logout">Выйти</button>
         </div>
       </div>
+
+      <div class="tool-shortcuts" id="tool-shortcuts" aria-label="Инструменты"></div>
 
       <!-- Overview -->
       <section class="tab-panel" data-panel="overview">
@@ -304,6 +306,17 @@
     const TOOL_SLUG_ORDER = ['dashboard', 'goals', 'tasks', 'planner', 'habits', 'finances', 'health', 'reviews', 'journal', 'ai', 'gamification'];
     const slugIdx = (s) => { const i = TOOL_SLUG_ORDER.indexOf(s); return i === -1 ? 999 : i; };
 
+    function renderToolShortcuts(tools) {
+      const wrap = document.getElementById('tool-shortcuts');
+      if (!wrap) return;
+      wrap.innerHTML = tools.map(tool => `
+        <a class="tool-shortcut" href="tool.html?slug=${tool.slug}" aria-label="${esc(tToolName(tool))}">
+          <span>${esc(tool.icon || tool.slug[0].toUpperCase())}</span>
+          <span class="ts-tip">${esc(tToolName(tool))}</span>
+        </a>
+      `).join('');
+    }
+
     async function loadTools() {
       const { data, error } = await sb
         .from('user_tools')
@@ -313,6 +326,7 @@
       const tools = (data || []).map(r => r.tool).filter(t => t && t.enabled).sort((a, b) => slugIdx(a.slug) - slugIdx(b.slug));
       renderToolsGrid(document.getElementById('tools-grid'), tools);
       renderToolsGrid(document.getElementById('ov-tools-grid'), tools.slice(0, 6));
+      renderToolShortcuts(tools);
     }
 
     async function loadOverviewData() {

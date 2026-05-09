@@ -677,6 +677,57 @@ button { font-family: inherit; cursor: pointer; }
 .badge-icon { font-size: 36px; margin-bottom: 8px; }
 .badge-card strong { font-size: 12px; }
 
+/* Tool shortcuts (top bar quick-access) */
+.tool-shortcuts {
+  display: flex; align-items: center; gap: 8px;
+  margin: -8px 0 22px;
+  padding: 6px 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.tool-shortcuts::-webkit-scrollbar { height: 6px; }
+.tool-shortcuts::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 3px; }
+.tool-shortcut {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer; text-decoration: none;
+  transition: background .12s, color .12s, border-color .12s, transform .1s;
+  position: relative;
+}
+.tool-shortcut:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+.tool-shortcut.active {
+  background: linear-gradient(135deg, rgba(124,92,255,0.22), rgba(34,211,238,0.18));
+  color: var(--text);
+  border-color: var(--violet);
+  box-shadow: 0 0 0 1px rgba(124,92,255,0.4);
+}
+.tool-shortcut .ts-tip {
+  position: absolute;
+  bottom: -28px; left: 50%; transform: translateX(-50%);
+  padding: 4px 8px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px; color: var(--text-dim);
+  white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity .12s;
+  z-index: 5;
+}
+.tool-shortcut:hover .ts-tip { opacity: 1; }
+
 /* Wheel-mini layout (dashboard tool) */
 .wheel-mini-grid {
   display: grid;
@@ -951,6 +1002,11 @@ body.menu-open .menu-backdrop {
   /* Eisenhower matrix → single column */
   .matrix-grid { grid-template-columns: 1fr; gap: 12px; }
   .matrix-cell { min-height: auto; padding: 14px; }
+
+  /* Tool shortcuts — keep tight on mobile */
+  .tool-shortcuts { gap: 6px; margin-bottom: 16px; }
+  .tool-shortcut { width: 36px; height: 36px; font-size: 16px; }
+  .tool-shortcut .ts-tip { display: none; }
 
   /* Calendar — month grid stays 7 cols but shrinks; week → list */
   .cal-cell { min-height: 72px; padding: 4px 5px; }

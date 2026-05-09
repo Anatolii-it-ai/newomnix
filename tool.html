@@ -6,7 +6,7 @@
   <title>OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=8" />
+  <link rel="stylesheet" href="app.css?v=9" />
 </head>
 <body>
   <div class="shell">
@@ -43,6 +43,7 @@
         </div>
       </div>
 
+      <div class="tool-shortcuts" id="tool-shortcuts" aria-label="Инструменты"></div>
       <div id="tool-root"></div>
     </main>
   </div>
@@ -78,23 +79,35 @@
     const tools = (utRows || []).map(r => r.tool).filter(t => t && t.enabled).sort((a, b) => orderOf(a.slug) - orderOf(b.slug));
     const sideTools = document.getElementById('side-tools');
 
+    function tToolName(tl) {
+      const k = `tools.${tl.slug}.name`;
+      const v = t(k);
+      return (v && v !== k) ? v : tl.name;
+    }
+
     function renderSideTools() {
       if (!tools.length) {
         sideTools.innerHTML = `<p class="muted" style="padding:8px; font-size:12px">${esc(t('tool.no_available'))}</p>`;
         return;
       }
-      sideTools.innerHTML = tools.map(tl => {
-        const k = `tools.${tl.slug}.name`;
-        const v = t(k);
-        const name = (v && v !== k) ? v : tl.name;
-        return `
-          <a class="side-link ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}">
-            <span class="ic">${tl.icon || '∎'}</span> ${esc(name)}
-          </a>
-        `;
-      }).join('');
+      sideTools.innerHTML = tools.map(tl => `
+        <a class="side-link ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}">
+          <span class="ic">${tl.icon || '∎'}</span> ${esc(tToolName(tl))}
+        </a>
+      `).join('');
+    }
+    function renderTopShortcuts() {
+      const wrap = document.getElementById('tool-shortcuts');
+      if (!wrap) return;
+      wrap.innerHTML = tools.map(tl => `
+        <a class="tool-shortcut ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}" aria-label="${esc(tToolName(tl))}">
+          <span>${esc(tl.icon || tl.slug[0].toUpperCase())}</span>
+          <span class="ts-tip">${esc(tToolName(tl))}</span>
+        </a>
+      `).join('');
     }
     renderSideTools();
+    renderTopShortcuts();
 
     document.getElementById('logout-btn').addEventListener('click', async () => {
       await omxLogout();
@@ -122,6 +135,7 @@
 
     document.addEventListener('langchange', () => {
       renderSideTools();
+      renderTopShortcuts();
       renderTool();
     });
 
