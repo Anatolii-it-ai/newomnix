@@ -385,18 +385,29 @@
       return `${y}-${m}-${day}`;
     }
 
+    function tToolName(tool) {
+      const k = `tools.${tool.slug}.name`;
+      const v = t(k);
+      return (v && v !== k) ? v : tool.name;
+    }
+    function tToolDesc(tool) {
+      const k = `tools.${tool.slug}.desc`;
+      const v = t(k);
+      return (v && v !== k) ? v : (tool.description || '');
+    }
+
     function renderToolsGrid(target, tools) {
       if (!target) return;
       if (!tools.length) {
-        target.innerHTML = `<div class="tool-empty">Доступ ни к одному модулю не выдан.</div>`;
+        target.innerHTML = `<div class="tool-empty">${esc(t('dashboard.tools_empty'))}</div>`;
         return;
       }
-      target.innerHTML = tools.map(t => `
-        <div class="tool-card" data-slug="${t.slug}">
-          <div class="ic">${esc(t.icon || t.slug[0].toUpperCase())}</div>
+      target.innerHTML = tools.map(tool => `
+        <div class="tool-card" data-slug="${tool.slug}">
+          <div class="ic">${esc(tool.icon || tool.slug[0].toUpperCase())}</div>
           <div>
-            <h4>${esc(t.name)}</h4>
-            <p>${esc(t.description || '')}</p>
+            <h4>${esc(tToolName(tool))}</h4>
+            <p>${esc(tToolDesc(tool))}</p>
           </div>
         </div>
       `).join('');
@@ -716,6 +727,7 @@
     // Re-render dynamic content on language change
     document.addEventListener('langchange', () => {
       loadOverviewData();
+      loadTools();
       const tabTitles = t('dashboard.tab_titles') || {};
       document.getElementById('page-title').textContent = tabTitles[activeTab] || activeTab;
     });

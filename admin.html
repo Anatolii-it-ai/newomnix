@@ -295,8 +295,9 @@
           <h3>${esc(t('admin.access_h'))}</h3>
           <div class="grid cols-2" style="margin-bottom:16px">
             ${allTools.map(tl => {
-              const localized = t(`tools.${tl.slug}.title`);
-              const name = (localized && localized !== `tools.${tl.slug}.title`) ? localized.split('—')[0].trim() : tl.name;
+              const k = `tools.${tl.slug}.name`;
+              const v = t(k);
+              const name = (v && v !== k) ? v : tl.name;
               return `
                 <label class="checkbox">
                   <input type="checkbox" data-tool="${tl.id}" ${userToolIds.has(tl.id) ? 'checked' : ''} ${!tl.enabled ? 'disabled' : ''}/>
@@ -357,8 +358,9 @@
       if (error) return toast(t('admin.err_load_tools'), 'error');
       const tbody = document.getElementById('t-tbody');
       tbody.innerHTML = data.map(tl => {
-        const localized = t(`tools.${tl.slug}.title`);
-        const name = (localized && localized !== `tools.${tl.slug}.title`) ? localized.split('—')[0].trim() : tl.name;
+        const k = `tools.${tl.slug}.name`;
+        const v = t(k);
+        const name = (v && v !== k) ? v : tl.name;
         return `
           <tr>
             <td><code style="font-size:12px">${esc(tl.slug)}</code></td>

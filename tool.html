@@ -82,11 +82,9 @@
         return;
       }
       sideTools.innerHTML = tools.map(tl => {
-        const localized = t(`tools.${tl.slug}.title`);
-        // Если в i18n нет title для этого tool — fallback на name из БД
-        const name = (localized && localized !== `tools.${tl.slug}.title`)
-          ? localized.split('—')[0].trim()
-          : tl.name;
+        const k = `tools.${tl.slug}.name`;
+        const v = t(k);
+        const name = (v && v !== k) ? v : tl.name;
         return `
           <a class="side-link ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}">
             <span class="ic">${tl.icon || '∎'}</span> ${esc(name)}
