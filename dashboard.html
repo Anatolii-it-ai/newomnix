@@ -7,6 +7,18 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="app.css?v=6" />
+  <style>
+    .sphere-label rect {
+      transition: fill .15s ease, stroke .15s ease;
+    }
+    .sphere-label:hover rect {
+      fill: rgba(255, 255, 255, 0.18);
+      stroke: rgba(255, 255, 255, 0.45);
+    }
+    .sphere-label:active rect {
+      fill: rgba(255, 255, 255, 0.28);
+    }
+  </style>
 </head>
 <body>
   <div class="shell">
@@ -438,16 +450,20 @@
 
       const labelsSvg = items.map((s, i) => {
         const a = -Math.PI / 2 + (i + 0.5) * sectorAngle;
-        const lr = 116;
+        const lr = 122;
         const x = Math.cos(a) * lr, y = Math.sin(a) * lr;
-        return `<text x="${x}" y="${y}" dominant-baseline="middle" text-anchor="middle"
-          font-family="Manrope" font-size="9" font-weight="700" fill="#ECECF1"
-          paint-order="stroke" stroke="#0B0B14" stroke-width="2.5px" stroke-linejoin="round"
-          style="text-transform:uppercase; letter-spacing:0.04em; cursor:pointer"
-          data-sphere="${esc(s.sphere)}">${esc(s.sphere)}</text>`;
+        const w = s.sphere.length * 7.5 + 16;
+        const h = 18;
+        return `<g class="sphere-label" data-sphere="${esc(s.sphere)}" style="cursor:pointer">
+          <rect x="${x - w/2}" y="${y - h/2}" width="${w}" height="${h}" rx="9"
+            fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+          <text x="${x}" y="${y}" dominant-baseline="middle" text-anchor="middle"
+            font-family="Manrope" font-size="9" font-weight="700" fill="#ECECF1"
+            style="text-transform:uppercase; letter-spacing:0.04em; pointer-events:none">${esc(s.sphere)}</text>
+        </g>`;
       }).join('');
 
-      wrap.innerHTML = `<svg viewBox="-130 -130 260 260" style="width:100%; max-width:340px; overflow:visible">
+      wrap.innerHTML = `<svg viewBox="-170 -140 340 280" style="width:100%; max-width:380px; overflow:visible">
         <g class="wheel-grid" stroke="rgba(255,255,255,0.08)" fill="none">
           <circle r="100"/><circle r="80"/><circle r="60"/><circle r="40"/><circle r="20"/>
         </g>
