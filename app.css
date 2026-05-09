@@ -681,12 +681,14 @@ button { font-family: inherit; cursor: pointer; }
 .tool-shortcuts {
   display: flex; align-items: center; gap: 8px;
   margin: -8px 0 22px;
-  padding: 6px 0;
+  padding: 6px 2px;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 }
-.tool-shortcuts::-webkit-scrollbar { height: 6px; }
+.tool-shortcuts::-webkit-scrollbar { height: 6px; width: 0; }
+.tool-shortcuts::-webkit-scrollbar:vertical { display: none; }
 .tool-shortcuts::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 3px; }
 .tool-shortcut {
   display: inline-flex; align-items: center; justify-content: center;
