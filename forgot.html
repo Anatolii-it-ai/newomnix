@@ -29,13 +29,16 @@
       </p>
     </section>
   </main>
-  <script src="auth.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js?v=1"></script>
+  <script src="auth.js?v=4"></script>
   <script>
     document.getElementById('forgot-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      await api('POST', '/api/auth/forgot', { email: fd.get('email') });
-      toast('Если такой email существует — ссылка отправлена. Проверь консоль сервера в dev-режиме.', 'success');
+      await omxResetPassword(fd.get('email'));
+      // Нейтральный ответ — не раскрываем существование email
+      toast('Если такой email существует — ссылка отправлена.', 'success');
     });
   </script>
 </body>

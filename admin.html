@@ -133,14 +133,42 @@
 
   <div id="modal-root"></div>
 
-  <script src="auth.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js?v=1"></script>
+  <script src="auth.js?v=4"></script>
   <script>
   (async () => {
-    const me = await api('GET', '/api/auth/me');
-    if (!me.ok) return location.href = 'login.html';
-    if (me.user.role !== 'admin') return location.href = 'dashboard.html';
-    document.getElementById('topbar-name').textContent = me.user.name || me.user.email;
-    document.getElementById('topbar-avatar').textContent = (me.user.name || me.user.email)[0].toUpperCase();
+    const session = await requireAuth();
+    if (!session) return;
+    const profile = await omxGetProfile();
+    if (profile?.role !== 'admin') { location.href = 'dashboard.html'; return; }
+    const displayName = profile.name || session.user.email;
+    document.getElementById('topbar-name').textContent = displayName;
+    document.getElementById('topbar-avatar').textContent = displayName[0].toUpperCase();
+
+    // Stub: показываем плашку «миграция админки в процессе» во всех панелях.
+    const stub = `
+      <div class="card">
+        <h2 style="margin-top:0">Админ-панель ещё не подключена к Supabase</h2>
+        <p class="muted">Этот раздел переезжает со старого Render-бэкенда. Авторизация и роль уже проверяются через Supabase, но списки пользователей/инструментов/групп/логов пока не доступны.</p>
+        <p class="muted">Для управления пользователями временно пользуйся <a href="https://supabase.com/dashboard/project/uuzohiwsdztnavtezgbj/auth/users" target="_blank">Supabase Dashboard → Authentication → Users</a>.</p>
+      </div>
+    `;
+    document.querySelectorAll('.tab-panel').forEach(p => { p.innerHTML = stub; });
+
+    // Tabs (без загрузчиков — все панели одинаковые)
+    document.querySelectorAll('[data-tab]').forEach(l => l.addEventListener('click', (e) => {
+      if (l.tagName === 'A' && l.getAttribute('href')) return;
+      e.preventDefault();
+      document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x === l));
+      document.querySelectorAll('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== l.dataset.tab);
+    }));
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await omxLogout();
+      location.href = 'login.html';
+    });
+    return;
 
     // Tabs
     const links = document.querySelectorAll('[data-tab]');

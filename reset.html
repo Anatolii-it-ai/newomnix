@@ -27,19 +27,31 @@
       <p class="auth-foot"><a href="login.html">← Вернуться ко входу</a></p>
     </section>
   </main>
-  <script src="auth.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js?v=1"></script>
+  <script src="auth.js?v=4"></script>
   <script>
+    // Supabase кладёт recovery-токен в URL hash и через detectSessionInUrl=true
+    // автоматически создаёт временную recovery-сессию. Просто ждём её и обновляем пароль.
+    (async () => {
+      // Дать SDK обработать hash
+      await new Promise(r => setTimeout(r, 300));
+      const session = await omxGetSession();
+      if (!session) {
+        toast('Ссылка устарела или недействительна. Запроси сброс заново.', 'error');
+      }
+    })();
+
     document.getElementById('reset-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const token = new URLSearchParams(location.search).get('token');
-      if (!token) return toast('Токен отсутствует. Запроси ссылку заново.', 'error');
       const fd = new FormData(e.target);
-      const r = await api('POST', '/api/auth/reset', { token, password: fd.get('password') });
+      const r = await omxUpdatePassword(fd.get('password'));
       if (r.ok) {
         toast('Пароль обновлён. Теперь можно войти.', 'success');
+        await omxLogout();
         setTimeout(() => location.href = 'login.html', 800);
       } else {
-        toast(r.error === 'invalid_token' ? 'Ссылка устарела или уже использована' : 'Ошибка', 'error');
+        toast('Ошибка: ' + (r.error || 'неизвестно'), 'error');
       }
     });
   </script>

@@ -39,10 +39,10 @@
 
       <div class="auth-divider">или</div>
       <div class="auth-providers">
-        <a href="/api/auth/google" class="provider-btn" data-provider="google">
+        <button type="button" class="provider-btn" id="google-btn" data-provider="google">
           <svg viewBox="0 0 24 24"><path fill="#fff" d="M22.5 12.27c0-.85-.07-1.66-.2-2.45H12v4.64h5.92a5.07 5.07 0 0 1-2.2 3.32v2.77h3.55c2.08-1.92 3.28-4.74 3.28-8.28z"/><path fill="#fff" opacity=".6" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.55-2.77c-.98.66-2.24 1.05-3.73 1.05-2.87 0-5.3-1.94-6.17-4.55H2.18v2.86A11 11 0 0 0 12 23z"/></svg>
           Продолжить с Google
-        </a>
+        </button>
       </div>
 
       <p class="auth-foot">
@@ -51,30 +51,43 @@
     </section>
   </main>
 
-  <script src="auth.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js?v=1"></script>
+  <script src="auth.js?v=4"></script>
   <script>
     requireGuest();
     checkProviders();
+
     document.getElementById('reg-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const name = fd.get('name');
       const email = fd.get('email');
       const password = fd.get('password');
-      const r = await api('POST', '/api/auth/register', { name, email, password });
+      const r = await omxRegister(email, password, name);
       if (r.ok) {
         await savePasswordCredential(email, password, name);
-        if (r.verifyUrl) console.log('verify URL (dev):', r.verifyUrl);
-        toast('Аккаунт создан. Проверь email для подтверждения.', 'success');
-        setTimeout(() => location.href = 'dashboard.html', 800);
+        if (r.needsVerify) {
+          toast('Аккаунт создан. Проверь email для подтверждения.', 'success');
+          setTimeout(() => location.href = 'verify.html?email=' + encodeURIComponent(email), 1200);
+        } else {
+          toast('Добро пожаловать!', 'success');
+          setTimeout(() => location.href = 'dashboard.html', 600);
+        }
       } else {
-        const map = {
-          email_taken: 'Email уже зарегистрирован',
-          invalid_email: 'Некорректный email',
-          weak_password: 'Пароль слишком короткий',
-        };
-        toast(map[r.error] || 'Ошибка регистрации', 'error');
+        const m = (r.error || '').toLowerCase();
+        const msg =
+          m.includes('already') || m.includes('registered') ? 'Email уже зарегистрирован' :
+          m.includes('invalid') && m.includes('email')      ? 'Некорректный email' :
+          m.includes('password')                            ? 'Пароль слишком короткий (мин. 6)' :
+          'Ошибка регистрации';
+        toast(msg, 'error');
       }
+    });
+
+    document.getElementById('google-btn').addEventListener('click', async () => {
+      const r = await omxOAuthGoogle();
+      if (!r.ok) toast('Google OAuth не настроен в Supabase', 'error');
     });
   </script>
 </body>

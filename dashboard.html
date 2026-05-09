@@ -165,17 +165,21 @@
     </main>
   </div>
 
-  <script src="auth.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js?v=1"></script>
+  <script src="auth.js?v=4"></script>
   <script>
   (async () => {
-    // Auth check
-    const me = await api('GET', '/api/auth/me');
-    if (!me.ok) return location.href = 'login.html';
-    const user = me.user;
+    const session = await requireAuth();
+    if (!session) return;
 
-    document.getElementById('topbar-name').textContent = user.name || user.email;
-    document.getElementById('topbar-avatar').textContent = (user.name || user.email)[0].toUpperCase();
-    if (user.role === 'admin') document.getElementById('admin-link').style.display = 'block';
+    const profile = await omxGetProfile();
+    const user = session.user;
+    const displayName = profile?.name || user.user_metadata?.name || user.email;
+
+    document.getElementById('topbar-name').textContent = displayName;
+    document.getElementById('topbar-avatar').textContent = displayName[0].toUpperCase();
+    if (profile?.role === 'admin') document.getElementById('admin-link').style.display = 'block';
 
     // Tabs
     const links = document.querySelectorAll('[data-tab]');
@@ -189,7 +193,6 @@
       })[name];
       if (name === 'tools') loadTools();
       if (name === 'notifications') loadNotificationsPage();
-      if (name === 'history') loadHistory();
       if (name === 'profile') loadProfile();
       if (name === 'subscription') loadSubscription();
     }
@@ -200,56 +203,53 @@
 
     // Logout
     document.getElementById('logout-btn').addEventListener('click', async () => {
-      await api('POST', '/api/auth/logout');
+      await omxLogout();
       location.href = 'login.html';
     });
 
-    // Notifications bell
+    // Notifications bell — пустой, пока не наполнится таблица
     const bell = document.getElementById('bell');
     const dropdown = document.getElementById('bell-dropdown');
     bell.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.toggle('hidden'); });
     document.addEventListener('click', () => dropdown.classList.add('hidden'));
     dropdown.addEventListener('click', (e) => e.stopPropagation());
 
-    document.getElementById('read-all-btn').addEventListener('click', async () => {
-      await api('POST', '/api/user/notifications/read-all');
-      loadNotifications();
-    });
-    document.getElementById('page-read-all').addEventListener('click', async () => {
-      await api('POST', '/api/user/notifications/read-all');
-      loadNotifications(); loadNotificationsPage();
-    });
-
     async function loadNotifications() {
-      const r = await api('GET', '/api/user/notifications');
-      if (!r.ok) return;
+      const { data, error } = await sb
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) return;
+      const items = data || [];
+      const unread = items.filter(n => !n.read).length;
       const badge = document.getElementById('bell-badge');
       const pill = document.getElementById('unread-pill');
-      if (r.unread > 0) {
-        badge.textContent = r.unread; badge.style.display = 'grid';
-        pill.textContent = r.unread; pill.style.display = 'inline-block';
+      if (unread > 0) {
+        badge.textContent = unread; badge.style.display = 'grid';
+        pill.textContent = unread; pill.style.display = 'inline-block';
       } else {
         badge.style.display = 'none'; pill.style.display = 'none';
       }
       const list = document.getElementById('bell-list');
-      list.innerHTML = r.items.slice(0, 8).map(n => `
+      list.innerHTML = items.slice(0, 8).map(n => `
         <div class="notif ${n.read ? '' : 'unread'}" data-id="${n.id}">
           <div><strong>${esc(n.title)}</strong>${n.body ? `<span class="muted">${esc(n.body)}</span>` : ''}</div>
           <span class="meta">${fmtDate(n.created_at)}</span>
         </div>
       `).join('') || '<p class="muted" style="padding:8px">Нет уведомлений</p>';
-      list.querySelectorAll('.notif').forEach(el => el.addEventListener('click', async () => {
-        await api('POST', `/api/user/notifications/${el.dataset.id}/read`);
-        loadNotifications();
-      }));
-      document.getElementById('ov-unread').textContent = r.unread;
+      document.getElementById('ov-unread').textContent = unread;
     }
 
     async function loadNotificationsPage() {
-      const r = await api('GET', '/api/user/notifications');
-      if (!r.ok) return;
+      const { data } = await sb
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
       const list = document.getElementById('notif-page-list');
-      list.innerHTML = r.items.map(n => `
+      list.innerHTML = (data || []).map(n => `
         <div class="notif ${n.read ? '' : 'unread'}">
           <div><strong>${esc(n.title)}</strong>${n.body ? `<span class="muted">${esc(n.body)}</span>` : ''}</div>
           <span class="meta">${fmtDate(n.created_at)}</span>
@@ -257,18 +257,31 @@
       `).join('') || '<p class="muted">Уведомлений пока нет.</p>';
     }
 
+    document.getElementById('read-all-btn').addEventListener('click', async () => {
+      await sb.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
+      loadNotifications();
+    });
+    document.getElementById('page-read-all').addEventListener('click', async () => {
+      await sb.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
+      loadNotifications(); loadNotificationsPage();
+    });
+
     async function loadTools() {
-      const r = await api('GET', '/api/user/tools');
-      if (!r.ok) return;
-      renderToolsGrid(document.getElementById('tools-grid'), r.tools);
-      renderToolsGrid(document.getElementById('ov-tools-grid'), r.tools.slice(0, 4));
-      document.getElementById('ov-tools').textContent = r.tools.length;
+      const { data, error } = await sb
+        .from('user_tools')
+        .select('tool:tools(slug, name, description, icon, enabled)')
+        .eq('user_id', user.id);
+      if (error) return;
+      const tools = (data || []).map(r => r.tool).filter(t => t && t.enabled);
+      renderToolsGrid(document.getElementById('tools-grid'), tools);
+      renderToolsGrid(document.getElementById('ov-tools-grid'), tools.slice(0, 4));
+      document.getElementById('ov-tools').textContent = tools.length;
     }
 
     function renderToolsGrid(target, tools) {
       if (!target) return;
       if (!tools.length) {
-        target.innerHTML = `<div class="tool-empty">Администратор пока не выдал доступ ни к одному модулю.</div>`;
+        target.innerHTML = `<div class="tool-empty">Доступ ни к одному модулю не выдан.</div>`;
         return;
       }
       target.innerHTML = tools.map(t => `
@@ -285,47 +298,34 @@
       }));
     }
 
-    async function loadHistory() {
-      const r = await api('GET', '/api/user/history');
-      if (!r.ok) return;
-      const tbody = document.getElementById('history-tbody');
-      tbody.innerHTML = r.items.map(it => `
-        <tr>
-          <td>${fmtDate(it.created_at)}</td>
-          <td><code style="font-family: 'JetBrains Mono', monospace; font-size:12px">${esc(it.action)}</code></td>
-          <td>${esc(it.target || '—')}</td>
-        </tr>
-      `).join('') || `<tr><td colspan="3" class="muted">Действий пока нет.</td></tr>`;
-    }
-
     async function loadProfile() {
-      const r = await api('GET', '/api/user/profile');
-      if (!r.ok) return;
-      document.getElementById('pf-email').value = r.user.email;
-      document.getElementById('pf-name').value = r.user.name || '';
+      document.getElementById('pf-email').value = user.email;
+      const p = await omxGetProfile();
+      document.getElementById('pf-name').value = p?.name || '';
     }
 
     async function loadSubscription() {
-      const r = await api('GET', '/api/user/subscription');
-      if (!r.ok) return;
-      document.getElementById('sub-plan').textContent = r.plan.toUpperCase();
-      document.getElementById('sub-since').textContent = fmtDate(r.since);
-      document.getElementById('sub-limit').textContent = r.limits.tools;
-      document.getElementById('ov-plan').textContent = r.plan.toUpperCase();
+      // Plan — пока статика (тарифов ещё нет)
+      document.getElementById('sub-plan').textContent = 'FREE';
+      document.getElementById('sub-since').textContent = fmtDate(user.created_at);
+      document.getElementById('sub-limit').textContent = '∞';
+      document.getElementById('ov-plan').textContent = 'FREE';
     }
 
     document.getElementById('profile-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const r = await api('PATCH', '/api/user/profile', { name: document.getElementById('pf-name').value });
-      toast(r.ok ? 'Сохранено' : 'Ошибка', r.ok ? 'success' : 'error');
+      const name = document.getElementById('pf-name').value;
+      const { error } = await sb.from('profiles').update({ name }).eq('id', user.id);
+      toast(error ? 'Ошибка' : 'Сохранено', error ? 'error' : 'success');
     });
 
     document.getElementById('pwd-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const r = await api('POST', '/api/user/password', { current: fd.get('current'), next: fd.get('next') });
+      // Supabase для обновления своего пароля current не требует.
+      const r = await omxUpdatePassword(fd.get('next'));
       if (r.ok) { toast('Пароль обновлён', 'success'); e.target.reset(); }
-      else toast(r.error === 'invalid_current' ? 'Текущий пароль неверный' : 'Ошибка', 'error');
+      else toast('Ошибка: ' + (r.error || ''), 'error');
     });
 
     // Initial load

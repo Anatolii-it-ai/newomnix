@@ -21,26 +21,41 @@
       <p class="auth-foot" id="foot" style="display:none"><a href="login.html">← Войти</a></p>
     </section>
   </main>
-  <script src="auth.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js?v=1"></script>
+  <script src="auth.js?v=4"></script>
   <script>
+    // Supabase сам подтверждает email при клике по ссылке — она ведёт сюда с токеном в hash,
+    // и detectSessionInUrl=true создаёт сессию. Нам остаётся только показать статус.
     (async () => {
-      const token = new URLSearchParams(location.search).get('token');
-      const $t = document.getElementById('title'), $s = document.getElementById('sub');
-      if (!token) {
-        $t.textContent = 'Токен не найден';
-        $s.textContent = 'Открой ссылку из письма ещё раз.';
-        return;
-      }
-      const r = await api('POST', '/api/auth/verify', { token });
-      if (r.ok) {
+      const $t = document.getElementById('title');
+      const $s = document.getElementById('sub');
+      const params = new URLSearchParams(location.search);
+
+      // Дать SDK секунду на парсинг hash
+      await new Promise(r => setTimeout(r, 300));
+      const session = await omxGetSession();
+
+      if (session) {
         $t.textContent = 'Email подтверждён ✓';
         $s.textContent = 'Все модули OmnixOS открыты.';
         document.getElementById('cta').style.display = 'inline-flex';
-      } else {
-        $t.textContent = 'Ссылка недействительна';
-        $s.textContent = 'Возможно, истёк срок или ссылка уже использована.';
-        document.getElementById('foot').style.display = 'block';
+        return;
       }
+
+      // Юзер пришёл сюда после регистрации — ждёт письмо
+      const email = params.get('email');
+      if (email) {
+        $t.textContent = 'Письмо отправлено';
+        $s.innerHTML = `Открой <b>${esc(email)}</b> и кликни по ссылке для подтверждения.`;
+        document.getElementById('foot').style.display = 'block';
+        return;
+      }
+
+      // Иначе ссылка устарела
+      $t.textContent = 'Ссылка недействительна';
+      $s.textContent = 'Возможно, срок истёк или ссылка уже использована.';
+      document.getElementById('foot').style.display = 'block';
     })();
   </script>
 </body>
