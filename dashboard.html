@@ -6,7 +6,7 @@
   <title>Личный кабинет — OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=4" />
+  <link rel="stylesheet" href="app.css?v=5" />
 </head>
 <body>
   <div class="shell">
@@ -68,46 +68,14 @@
           <p class="hero-meta-text" id="ov-today-summary">—</p>
         </div>
 
-        <div class="grid cols-4 ov-stats" style="margin-bottom:24px">
-          <div class="stat-rich">
-            <div class="stat-rich-head">
-              <span class="stat-icon">▦</span>
-              <span class="stat-label">Модулей</span>
-            </div>
-            <div class="stat-rich-value" id="ov-tools">—</div>
-            <div class="stat-rich-foot" id="ov-tools-foot">подключено</div>
-          </div>
-          <div class="stat-rich">
-            <div class="stat-rich-head">
-              <span class="stat-icon">∞</span>
-              <span class="stat-label">Стрик</span>
-            </div>
-            <div class="stat-rich-value" id="ov-streak">—</div>
-            <div class="stat-rich-foot" id="ov-streak-foot">дней подряд</div>
-          </div>
-          <div class="stat-rich">
-            <div class="stat-rich-head">
-              <span class="stat-icon">◇</span>
-              <span class="stat-label">Задачи на день</span>
-            </div>
-            <div class="stat-rich-value" id="ov-tasks-today">—</div>
-            <div class="stat-rich-foot" id="ov-tasks-foot">в работе</div>
-          </div>
-          <div class="stat-rich">
-            <div class="stat-rich-head">
-              <span class="stat-icon">★</span>
-              <span class="stat-label">Тариф</span>
-            </div>
-            <div class="stat-rich-value" id="ov-plan">FREE</div>
-            <div class="stat-rich-foot">безлимит модулей</div>
-          </div>
-        </div>
-
         <div class="grid cols-2" style="margin-bottom:24px">
           <div class="card">
             <h2>Колесо баланса</h2>
-            <p class="muted" style="margin-top:-10px; margin-bottom:14px">Самооценка по 8 сферам жизни</p>
-            <div class="wheel-mini" id="ov-wheel"></div>
+            <p class="muted" style="margin-top:-10px; margin-bottom:14px">Нажми на сферу, чтобы увидеть задачи по ней</p>
+            <div id="ov-wheel" class="wheel-mini-grid">
+              <div id="ov-wheel-svg" style="overflow:visible"></div>
+              <div id="ov-wheel-list"></div>
+            </div>
           </div>
           <div class="card">
             <h2>Сегодня</h2>
@@ -203,6 +171,8 @@
       </section>
     </main>
   </div>
+
+  <div id="modal-root"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=1"></script>
@@ -321,9 +291,6 @@
       const tools = (data || []).map(r => r.tool).filter(t => t && t.enabled);
       renderToolsGrid(document.getElementById('tools-grid'), tools);
       renderToolsGrid(document.getElementById('ov-tools-grid'), tools.slice(0, 6));
-      document.getElementById('ov-tools').textContent = tools.length;
-      const totalTools = await sb.from('tools').select('id', { count: 'exact', head: true }).eq('enabled', true);
-      document.getElementById('ov-tools-foot').textContent = `из ${totalTools.count ?? '—'} доступных`;
     }
 
     async function loadOverviewData() {
@@ -337,27 +304,17 @@
       const todayStr = toDateStr(today);
       const dateStr = today.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
-      const [wheelRes, habitsRes, openTasksRes, todayLogsRes, streakLogsRes] = await Promise.all([
+      const [wheelRes, habitsRes, openTasksRes, todayLogsRes] = await Promise.all([
         sb.from('wheel_scores').select('sphere, score').eq('user_id', user.id),
         sb.from('habits').select('id, name, icon, time_of_day').eq('user_id', user.id).eq('archived', false).order('time_of_day'),
         sb.from('tasks').select('id, title, quadrant, due_date, status').eq('user_id', user.id).eq('status', 'open').order('quadrant'),
         sb.from('habit_logs').select('habit_id').eq('date', todayStr),
-        sb.from('habit_logs').select('date').order('date', { ascending: false }).limit(60),
       ]);
 
       const wheel = wheelRes.data || [];
       const habits = habitsRes.data || [];
       const openTasks = openTasksRes.data || [];
       const todayHabitIds = new Set((todayLogsRes.data || []).map(l => l.habit_id));
-
-      // Streak: consecutive days where ANY habit was logged
-      const logDates = new Set((streakLogsRes.data || []).map(r => r.date));
-      let streak = 0;
-      const cursor = new Date();
-      while (logDates.has(toDateStr(cursor))) {
-        streak++;
-        cursor.setDate(cursor.getDate() - 1);
-      }
 
       // Today's tasks: all open with due_date <= today (or no due_date)
       const todaysTasks = openTasks.filter(t => !t.due_date || t.due_date <= todayStr);
@@ -371,25 +328,10 @@
       if (todaysTasks.length) summaryParts.push(`${todaysTasks.length} задач в работе.`);
       document.getElementById('ov-today-summary').innerHTML = summaryParts.join(' ');
 
-      // Stats
-      document.getElementById('ov-streak').textContent = streak;
-      document.getElementById('ov-streak-foot').textContent = streak === 0 ? 'начни сегодня' : streak === 1 ? 'день' : streak < 5 ? 'дня подряд' : 'дней подряд';
-      document.getElementById('ov-tasks-today').textContent = todaysTasks.length;
-      document.getElementById('ov-tasks-foot').textContent = todaysTasks.length === 0 ? 'свободно' : 'в работе';
-
-      // Wheel render
+      // Wheel render — SVG with clickable spheres
       const wheelMap = Object.fromEntries(wheel.map(w => [w.sphere, w.score]));
-      const spheres = ['Здоровье', 'Работа', 'Деньги', 'Отношения', 'Развитие', 'Отдых', 'Творчество', 'Дух'];
-      document.getElementById('ov-wheel').innerHTML = spheres.map(s => {
-        const score = wheelMap[s] ?? 5;
-        return `
-          <div class="wheel-mini-row">
-            <span class="wheel-mini-name">${s}</span>
-            <div class="wheel-mini-bar"><div class="wheel-mini-bar-fill" style="width: ${score * 10}%"></div></div>
-            <span class="wheel-mini-score">${score}</span>
-          </div>
-        `;
-      }).join('');
+      const wheelItems = SPHERES.map(s => ({ sphere: s, score: wheelMap[s] ?? 5 }));
+      renderWheelSVG(wheelItems, openSphereTasks);
 
       // Today list — habits first (max 4), then tasks (max 3)
       const habitRows = habits.slice(0, 4).map(h => {
@@ -460,7 +402,130 @@
       document.getElementById('sub-plan').textContent = 'FREE';
       document.getElementById('sub-since').textContent = fmtDate(user.created_at);
       document.getElementById('sub-limit').textContent = '∞';
-      document.getElementById('ov-plan').textContent = 'FREE';
+    }
+
+    // ---------- Колесо баланса: SVG + клик по сфере ----------
+    const SPHERES = ['Здоровье', 'Работа', 'Деньги', 'Отношения', 'Развитие', 'Отдых', 'Творчество', 'Дух'];
+    const SPHERE_COLORS = {
+      'Здоровье': '#EF4444', 'Работа': '#22D3EE', 'Деньги': '#10B981', 'Отношения': '#EC4899',
+      'Развитие': '#7C5CFF', 'Отдых': '#F59E0B', 'Творчество': '#06B6D4', 'Дух': '#8B5CF6',
+    };
+    const QUADRANT_LABELS = {
+      1: 'Срочно · Важно', 2: 'Не срочно · Важно', 3: 'Срочно · Не важно', 4: 'Не срочно · Не важно',
+    };
+    const ruShortDate = (s) => s ? new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '';
+
+    function renderWheelSVG(items, onSphereClick) {
+      const wrap = document.getElementById('ov-wheel-svg');
+      const ctrl = document.getElementById('ov-wheel-list');
+      if (!wrap || !ctrl) return;
+      const N = items.length;
+      const sectorAngle = (Math.PI * 2) / N;
+      const maxR = 100;
+
+      const sectorsSvg = items.map((s, i) => {
+        const a0 = -Math.PI / 2 + i * sectorAngle;
+        const a1 = a0 + sectorAngle;
+        const r = (s.score / 10) * maxR;
+        const x1 = Math.cos(a0) * r, y1 = Math.sin(a0) * r;
+        const x2 = Math.cos(a1) * r, y2 = Math.sin(a1) * r;
+        const large = sectorAngle > Math.PI ? 1 : 0;
+        const color = SPHERE_COLORS[s.sphere] || '#7C5CFF';
+        return `<path d="M0 0 L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z"
+          fill="${color}" fill-opacity="0.55" stroke="${color}"
+          data-sphere="${esc(s.sphere)}" style="cursor:pointer"><title>${esc(s.sphere)} — ${s.score}/10</title></path>`;
+      }).join('');
+
+      const labelsSvg = items.map((s, i) => {
+        const a = -Math.PI / 2 + (i + 0.5) * sectorAngle;
+        const lr = 116;
+        const x = Math.cos(a) * lr, y = Math.sin(a) * lr;
+        return `<text x="${x}" y="${y}" dominant-baseline="middle" text-anchor="middle"
+          font-family="Manrope" font-size="9" font-weight="700" fill="#ECECF1"
+          paint-order="stroke" stroke="#0B0B14" stroke-width="2.5px" stroke-linejoin="round"
+          style="text-transform:uppercase; letter-spacing:0.04em; cursor:pointer"
+          data-sphere="${esc(s.sphere)}">${esc(s.sphere)}</text>`;
+      }).join('');
+
+      wrap.innerHTML = `<svg viewBox="-130 -130 260 260" style="width:100%; max-width:340px; overflow:visible">
+        <g class="wheel-grid" stroke="rgba(255,255,255,0.08)" fill="none">
+          <circle r="100"/><circle r="80"/><circle r="60"/><circle r="40"/><circle r="20"/>
+        </g>
+        ${sectorsSvg}
+        ${labelsSvg}
+        <circle r="3" fill="#fff"/>
+      </svg>`;
+
+      ctrl.innerHTML = items.map(s => `
+        <div class="wheel-row" data-sphere="${esc(s.sphere)}" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; font-size:13px; transition:background .15s">
+          <span style="width:8px; height:8px; border-radius:50%; background:${SPHERE_COLORS[s.sphere]}"></span>
+          <span style="flex:1">${esc(s.sphere)}</span>
+          <span style="font-weight:700; min-width:24px; text-align:right">${s.score}</span>
+        </div>
+      `).join('');
+
+      const handle = (el) => el.addEventListener('click', () => onSphereClick(el.dataset.sphere));
+      wrap.querySelectorAll('[data-sphere]').forEach(handle);
+      ctrl.querySelectorAll('[data-sphere]').forEach((el) => {
+        handle(el);
+        el.addEventListener('mouseenter', () => el.style.background = 'rgba(255,255,255,0.05)');
+        el.addEventListener('mouseleave', () => el.style.background = '');
+      });
+    }
+
+    async function openSphereTasks(sphere) {
+      const { data } = await sb
+        .from('tasks')
+        .select('id, title, status, due_date, quadrant')
+        .eq('user_id', user.id)
+        .eq('sphere', sphere)
+        .order('status')
+        .order('quadrant');
+      const tasks = data || [];
+      const color = SPHERE_COLORS[sphere] || '#7C5CFF';
+      const open = tasks.filter(t => t.status !== 'done');
+      const done = tasks.filter(t => t.status === 'done');
+
+      const taskItem = (t) => `
+        <li class="${t.status === 'done' ? 'done' : ''}">
+          <i style="background:${color}"></i>
+          <span style="flex:1">${esc(t.title)}</span>
+          <span class="muted" style="font-size:12px; margin-left:8px">
+            ${t.due_date ? ruShortDate(t.due_date) + ' · ' : ''}Q${t.quadrant}
+          </span>
+        </li>
+      `;
+
+      const root = document.getElementById('modal-root');
+      root.innerHTML = `
+        <div class="modal-bg">
+          <div class="modal">
+            <h2 style="display:flex; align-items:center; gap:10px; margin-top:0">
+              <span style="width:12px; height:12px; border-radius:50%; background:${color}"></span>
+              ${esc(sphere)}
+            </h2>
+            <p class="muted" style="margin-top:-6px">Задачи, привязанные к этой сфере</p>
+            ${open.length ? `
+              <h3 style="margin-top:18px; font-size:14px">Активные (${open.length})</h3>
+              <ul class="mini-tasks">${open.map(taskItem).join('')}</ul>
+            ` : ''}
+            ${done.length ? `
+              <h3 style="margin-top:16px; font-size:14px">Выполнены (${done.length})</h3>
+              <ul class="mini-tasks">${done.map(taskItem).join('')}</ul>
+            ` : ''}
+            ${!tasks.length ? `<p class="muted" style="margin-top:14px">По сфере «${esc(sphere)}» задач пока нет. Открой <a href="tool.html?slug=tasks">Задачи</a> и создай первую.</p>` : ''}
+            <div class="modal-foot">
+              <a class="btn btn-ghost" href="tool.html?slug=tasks">Открыть задачи</a>
+              <button class="btn btn-primary" id="sphere-modal-close">Закрыть</button>
+            </div>
+          </div>
+        </div>
+      `;
+      const close = () => root.innerHTML = '';
+      root.querySelector('.modal-bg').addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-bg')) close();
+      });
+      document.getElementById('sphere-modal-close').addEventListener('click', close);
     }
 
     document.getElementById('profile-form').addEventListener('submit', async (e) => {

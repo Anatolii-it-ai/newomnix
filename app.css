@@ -786,7 +786,7 @@ body.menu-open .menu-backdrop {
   .habit-chip { padding: 8px 12px; font-size: 12px; }
 
   /* Wheel mini (dashboard) — stack */
-  #wheel-mini {
+  .wheel-mini-grid {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
