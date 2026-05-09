@@ -99,12 +99,15 @@
     function renderTopShortcuts() {
       const wrap = document.getElementById('tool-shortcuts');
       if (!wrap) return;
-      wrap.innerHTML = tools.map(tl => `
-        <a class="tool-shortcut ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}" aria-label="${esc(tToolName(tl))}">
-          <span>${esc(tl.icon || tl.slug[0].toUpperCase())}</span>
-          <span class="ts-tip">${esc(tToolName(tl))}</span>
-        </a>
-      `).join('');
+      wrap.innerHTML = tools.map(tl => {
+        const name = tToolName(tl);
+        return `
+          <a class="tool-shortcut ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}" aria-label="${esc(name)}" title="${esc(name)}">
+            <span>${esc(tl.icon || tl.slug[0].toUpperCase())}</span>
+            <span class="ts-tip">${esc(name)}</span>
+          </a>
+        `;
+      }).join('');
     }
     renderSideTools();
     renderTopShortcuts();

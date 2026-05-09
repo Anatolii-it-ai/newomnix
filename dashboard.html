@@ -309,12 +309,15 @@
     function renderToolShortcuts(tools) {
       const wrap = document.getElementById('tool-shortcuts');
       if (!wrap) return;
-      wrap.innerHTML = tools.map(tool => `
-        <a class="tool-shortcut" href="tool.html?slug=${tool.slug}" aria-label="${esc(tToolName(tool))}">
-          <span>${esc(tool.icon || tool.slug[0].toUpperCase())}</span>
-          <span class="ts-tip">${esc(tToolName(tool))}</span>
-        </a>
-      `).join('');
+      wrap.innerHTML = tools.map(tool => {
+        const name = tToolName(tool);
+        return `
+          <a class="tool-shortcut" href="tool.html?slug=${tool.slug}" aria-label="${esc(name)}" title="${esc(name)}">
+            <span>${esc(tool.icon || tool.slug[0].toUpperCase())}</span>
+            <span class="ts-tip">${esc(name)}</span>
+          </a>
+        `;
+      }).join('');
     }
 
     async function loadTools() {
