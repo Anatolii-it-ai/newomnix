@@ -843,7 +843,11 @@
         </div>
       `;
 
-      const back = () => onClose ? onClose() : (root.innerHTML = '');
+      // Закрываем модалку всегда, и опционально вызываем callback (например, чтобы перезагрузить данные)
+      const back = () => {
+        root.innerHTML = '';
+        if (onClose) onClose();
+      };
       root.querySelector('.modal-bg').addEventListener('click', (e) => {
         if (e.target.classList.contains('modal-bg')) back();
       });
