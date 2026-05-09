@@ -6,7 +6,7 @@
   <title>Личный кабинет — OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=3" />
+  <link rel="stylesheet" href="app.css?v=4" />
 </head>
 <body>
   <div class="shell">
@@ -62,24 +62,63 @@
 
       <!-- Overview -->
       <section class="tab-panel" data-panel="overview">
-        <div class="grid cols-3" style="margin-bottom:24px">
-          <div class="card stat">
-            <div class="label">Доступных модулей</div>
-            <div class="value" id="ov-tools">—</div>
+        <div class="hero-greeting">
+          <p class="hero-eyebrow" id="ov-greeting">Добрый день</p>
+          <h2 class="hero-name" id="ov-username">…</h2>
+          <p class="hero-meta-text" id="ov-today-summary">—</p>
+        </div>
+
+        <div class="grid cols-4 ov-stats" style="margin-bottom:24px">
+          <div class="stat-rich">
+            <div class="stat-rich-head">
+              <span class="stat-icon">▦</span>
+              <span class="stat-label">Модулей</span>
+            </div>
+            <div class="stat-rich-value" id="ov-tools">—</div>
+            <div class="stat-rich-foot" id="ov-tools-foot">подключено</div>
           </div>
-          <div class="card stat">
-            <div class="label">Непрочитанных</div>
-            <div class="value" id="ov-unread">—</div>
+          <div class="stat-rich">
+            <div class="stat-rich-head">
+              <span class="stat-icon">∞</span>
+              <span class="stat-label">Стрик</span>
+            </div>
+            <div class="stat-rich-value" id="ov-streak">—</div>
+            <div class="stat-rich-foot" id="ov-streak-foot">дней подряд</div>
           </div>
-          <div class="card stat">
-            <div class="label">Тариф</div>
-            <div class="value" id="ov-plan">—</div>
+          <div class="stat-rich">
+            <div class="stat-rich-head">
+              <span class="stat-icon">◇</span>
+              <span class="stat-label">Задачи на день</span>
+            </div>
+            <div class="stat-rich-value" id="ov-tasks-today">—</div>
+            <div class="stat-rich-foot" id="ov-tasks-foot">в работе</div>
+          </div>
+          <div class="stat-rich">
+            <div class="stat-rich-head">
+              <span class="stat-icon">★</span>
+              <span class="stat-label">Тариф</span>
+            </div>
+            <div class="stat-rich-value" id="ov-plan">FREE</div>
+            <div class="stat-rich-foot">безлимит модулей</div>
+          </div>
+        </div>
+
+        <div class="grid cols-2" style="margin-bottom:24px">
+          <div class="card">
+            <h2>Колесо баланса</h2>
+            <p class="muted" style="margin-top:-10px; margin-bottom:14px">Самооценка по 8 сферам жизни</p>
+            <div class="wheel-mini" id="ov-wheel"></div>
+          </div>
+          <div class="card">
+            <h2>Сегодня</h2>
+            <p class="muted" style="margin-top:-10px; margin-bottom:14px">Привычки и задачи на день</p>
+            <div class="today-list" id="ov-today"></div>
           </div>
         </div>
 
         <div class="card">
           <h2>Быстрый старт</h2>
-          <p class="muted">Открой любой подключённый инструмент или начни с дашборда.</p>
+          <p class="muted" style="margin-top:-8px">Открой любой подключённый инструмент.</p>
           <div id="ov-tools-grid" class="grid cols-2" style="margin-top:14px"></div>
         </div>
       </section>
@@ -247,7 +286,6 @@
           <span class="meta">${fmtDate(n.created_at)}</span>
         </div>
       `).join('') || '<p class="muted" style="padding:8px">Нет уведомлений</p>';
-      document.getElementById('ov-unread').textContent = unread;
     }
 
     async function loadNotificationsPage() {
@@ -282,8 +320,113 @@
       if (error) return;
       const tools = (data || []).map(r => r.tool).filter(t => t && t.enabled);
       renderToolsGrid(document.getElementById('tools-grid'), tools);
-      renderToolsGrid(document.getElementById('ov-tools-grid'), tools.slice(0, 4));
+      renderToolsGrid(document.getElementById('ov-tools-grid'), tools.slice(0, 6));
       document.getElementById('ov-tools').textContent = tools.length;
+      const totalTools = await sb.from('tools').select('id', { count: 'exact', head: true }).eq('enabled', true);
+      document.getElementById('ov-tools-foot').textContent = `из ${totalTools.count ?? '—'} доступных`;
+    }
+
+    async function loadOverviewData() {
+      // Time-of-day greeting
+      const hour = new Date().getHours();
+      const greeting = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+      document.getElementById('ov-greeting').textContent = greeting;
+      document.getElementById('ov-username').textContent = displayName;
+
+      const today = new Date();
+      const todayStr = toDateStr(today);
+      const dateStr = today.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+
+      const [wheelRes, habitsRes, openTasksRes, todayLogsRes, streakLogsRes] = await Promise.all([
+        sb.from('wheel_scores').select('sphere, score').eq('user_id', user.id),
+        sb.from('habits').select('id, name, icon, time_of_day').eq('user_id', user.id).eq('archived', false).order('time_of_day'),
+        sb.from('tasks').select('id, title, quadrant, due_date, status').eq('user_id', user.id).eq('status', 'open').order('quadrant'),
+        sb.from('habit_logs').select('habit_id').eq('date', todayStr),
+        sb.from('habit_logs').select('date').order('date', { ascending: false }).limit(60),
+      ]);
+
+      const wheel = wheelRes.data || [];
+      const habits = habitsRes.data || [];
+      const openTasks = openTasksRes.data || [];
+      const todayHabitIds = new Set((todayLogsRes.data || []).map(l => l.habit_id));
+
+      // Streak: consecutive days where ANY habit was logged
+      const logDates = new Set((streakLogsRes.data || []).map(r => r.date));
+      let streak = 0;
+      const cursor = new Date();
+      while (logDates.has(toDateStr(cursor))) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+
+      // Today's tasks: all open with due_date <= today (or no due_date)
+      const todaysTasks = openTasks.filter(t => !t.due_date || t.due_date <= todayStr);
+
+      // Hero summary
+      const habitsLeft = habits.length - todayHabitIds.size;
+      const summaryParts = [];
+      summaryParts.push(`Сегодня — <strong>${dateStr}</strong>.`);
+      if (habitsLeft > 0) summaryParts.push(`${habitsLeft} из ${habits.length} привычек ждут.`);
+      else if (habits.length) summaryParts.push(`Все ${habits.length} привычек закрыты — отличный день.`);
+      if (todaysTasks.length) summaryParts.push(`${todaysTasks.length} задач в работе.`);
+      document.getElementById('ov-today-summary').innerHTML = summaryParts.join(' ');
+
+      // Stats
+      document.getElementById('ov-streak').textContent = streak;
+      document.getElementById('ov-streak-foot').textContent = streak === 0 ? 'начни сегодня' : streak === 1 ? 'день' : streak < 5 ? 'дня подряд' : 'дней подряд';
+      document.getElementById('ov-tasks-today').textContent = todaysTasks.length;
+      document.getElementById('ov-tasks-foot').textContent = todaysTasks.length === 0 ? 'свободно' : 'в работе';
+
+      // Wheel render
+      const wheelMap = Object.fromEntries(wheel.map(w => [w.sphere, w.score]));
+      const spheres = ['Здоровье', 'Работа', 'Деньги', 'Отношения', 'Развитие', 'Отдых', 'Творчество', 'Дух'];
+      document.getElementById('ov-wheel').innerHTML = spheres.map(s => {
+        const score = wheelMap[s] ?? 5;
+        return `
+          <div class="wheel-mini-row">
+            <span class="wheel-mini-name">${s}</span>
+            <div class="wheel-mini-bar"><div class="wheel-mini-bar-fill" style="width: ${score * 10}%"></div></div>
+            <span class="wheel-mini-score">${score}</span>
+          </div>
+        `;
+      }).join('');
+
+      // Today list — habits first (max 4), then tasks (max 3)
+      const habitRows = habits.slice(0, 4).map(h => {
+        const done = todayHabitIds.has(h.id);
+        const time = h.time_of_day === 'morning' ? 'утро' : h.time_of_day === 'evening' ? 'вечер' : 'день';
+        return `
+          <div class="today-row ${done ? 'done' : ''}">
+            <span class="today-check">${done ? '✓' : ''}</span>
+            <span class="today-icon">${esc(h.icon || '•')}</span>
+            <span class="today-text">${esc(h.name)}</span>
+            <span class="today-meta">${time}</span>
+          </div>
+        `;
+      }).join('');
+      const taskRows = todaysTasks.slice(0, 3).map(t => `
+        <div class="today-row">
+          <span class="today-check"></span>
+          <span class="today-icon">◇</span>
+          <span class="today-text">${esc(t.title)}</span>
+          <span class="today-meta">Q${t.quadrant}</span>
+        </div>
+      `).join('');
+      const todayHtml = habitRows + taskRows;
+      document.getElementById('ov-today').innerHTML = todayHtml || `
+        <div class="today-empty">
+          Пока нет привычек и задач.<br/>
+          Открой <a href="tool.html?slug=habits">Привычки</a> или <a href="tool.html?slug=tasks">Задачи</a> и начни.
+        </div>
+      `;
+    }
+
+    function toDateStr(d) {
+      // Local date YYYY-MM-DD (without UTC shift)
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     }
 
     function renderToolsGrid(target, tools) {
@@ -340,6 +483,7 @@
     loadNotifications();
     loadTools();
     loadSubscription();
+    loadOverviewData();
   })();
   </script>
 </body>
