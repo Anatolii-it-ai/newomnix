@@ -146,41 +146,19 @@
     document.getElementById('topbar-name').textContent = displayName;
     document.getElementById('topbar-avatar').textContent = displayName[0].toUpperCase();
 
-    // Stub: показываем плашку «миграция админки в процессе» во всех панелях.
-    const stub = `
-      <div class="card">
-        <h2 style="margin-top:0">Админ-панель ещё не подключена к Supabase</h2>
-        <p class="muted">Этот раздел переезжает со старого Render-бэкенда. Авторизация и роль уже проверяются через Supabase, но списки пользователей/инструментов/групп/логов пока не доступны.</p>
-        <p class="muted">Для управления пользователями временно пользуйся <a href="https://supabase.com/dashboard/project/uuzohiwsdztnavtezgbj/auth/users" target="_blank">Supabase Dashboard → Authentication → Users</a>.</p>
-      </div>
-    `;
-    document.querySelectorAll('.tab-panel').forEach(p => { p.innerHTML = stub; });
-
-    // Tabs (без загрузчиков — все панели одинаковые)
-    document.querySelectorAll('[data-tab]').forEach(l => l.addEventListener('click', (e) => {
-      if (l.tagName === 'A' && l.getAttribute('href')) return;
-      e.preventDefault();
-      document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x === l));
-      document.querySelectorAll('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== l.dataset.tab);
-    }));
-
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-      await omxLogout();
-      location.href = 'login.html';
-    });
-    return;
-
-    // Tabs
+    // ---------- Tabs ----------
     const links = document.querySelectorAll('[data-tab]');
     const panels = document.querySelectorAll('[data-panel]');
+    const titles = {
+      stats: 'Статистика', users: 'Пользователи', tools: 'Инструменты',
+      groups: 'Группы доступа', logs: 'Логи действий',
+    };
+    const loaders = { stats: loadStats, users: loadUsers, tools: loadTools };
     function activate(name) {
       links.forEach(l => l.classList.toggle('active', l.dataset.tab === name));
       panels.forEach(p => p.hidden = p.dataset.panel !== name);
-      document.getElementById('page-title').textContent = ({
-        stats: 'Статистика', users: 'Пользователи', tools: 'Инструменты',
-        groups: 'Группы доступа', logs: 'Логи действий',
-      })[name];
-      ({ stats: loadStats, users: loadUsers, tools: loadTools, groups: loadGroups, logs: loadLogs })[name]?.();
+      document.getElementById('page-title').textContent = titles[name];
+      loaders[name]?.();
     }
     links.forEach(l => l.addEventListener('click', (e) => {
       if (l.tagName === 'A' && l.getAttribute('href')) return;
@@ -188,41 +166,49 @@
     }));
 
     document.getElementById('logout-btn').addEventListener('click', async () => {
-      await api('POST', '/api/auth/logout');
+      await omxLogout();
       location.href = 'login.html';
     });
 
-    // ============ Stats ============
+    // ---------- Stats ----------
     async function loadStats() {
-      const r = await api('GET', '/api/admin/stats');
-      if (!r.ok) return;
-      document.getElementById('s-users').textContent = r.users_total;
-      document.getElementById('s-active').textContent = r.users_active;
-      document.getElementById('s-blocked').textContent = r.users_blocked;
-      document.getElementById('s-admins').textContent = r.admins;
-      document.getElementById('s-tools').textContent = r.tools_total;
-      document.getElementById('s-tools-on').textContent = r.tools_enabled;
-      document.getElementById('s-groups').textContent = r.groups_total;
-      document.getElementById('s-new').textContent = r.new_today;
-      document.getElementById('s-actions').textContent = r.actions_today;
+      const { data, error } = await sb.rpc('admin_stats');
+      if (error) return toast('Не удалось загрузить статистику', 'error');
+      document.getElementById('s-users').textContent = data.users_total;
+      document.getElementById('s-active').textContent = data.users_active;
+      document.getElementById('s-blocked').textContent = data.users_blocked;
+      document.getElementById('s-admins').textContent = data.admins;
+      document.getElementById('s-tools').textContent = data.tools_total;
+      document.getElementById('s-tools-on').textContent = data.tools_enabled;
+      document.getElementById('s-groups').textContent = '—';
+      document.getElementById('s-new').textContent = data.new_today;
+      document.getElementById('s-actions').textContent = '—';
     }
 
-    // ============ Users ============
-    let allTools = [], allGroups = [];
+    // ---------- Users ----------
+    let cachedUsers = [];
 
     async function loadUsers() {
-      const q = document.getElementById('u-search').value.trim();
-      const r = await api('GET', `/api/admin/users?q=${encodeURIComponent(q)}`);
-      if (!r.ok) return;
-      document.getElementById('u-total').textContent = `Всего: ${r.total}`;
+      const { data, error } = await sb.rpc('admin_list_users');
+      if (error) return toast('Не удалось загрузить пользователей', 'error');
+      cachedUsers = data || [];
+      renderUsers();
+    }
+
+    function renderUsers() {
+      const q = document.getElementById('u-search').value.trim().toLowerCase();
+      const filtered = q
+        ? cachedUsers.filter(u => (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q))
+        : cachedUsers;
+      document.getElementById('u-total').textContent = `Всего: ${filtered.length}`;
       const tbody = document.getElementById('u-tbody');
-      tbody.innerHTML = r.items.map(u => `
+      tbody.innerHTML = filtered.map(u => `
         <tr>
-          <td><code style="font-size:12px">${u.id}</code></td>
+          <td><code style="font-size:12px">${u.id.slice(0, 8)}…</code></td>
           <td>${esc(u.email)}</td>
           <td>${esc(u.name || '—')}</td>
           <td><span class="tag tag-${u.role}">${u.role}</span></td>
-          <td><span class="tag tag-${u.status}">${u.status === 'active' ? 'актив' : 'блок'}</span></td>
+          <td><span class="tag tag-${u.status === 'active' ? 'active' : 'blocked'}">${u.status === 'active' ? 'актив' : 'блок'}</span></td>
           <td class="muted">${fmtDate(u.created_at)}</td>
           <td class="muted">${fmtDate(u.last_login_at)}</td>
           <td class="row-actions">
@@ -237,19 +223,18 @@
     }
 
     document.getElementById('u-refresh').addEventListener('click', loadUsers);
-    document.getElementById('u-search').addEventListener('input', debounce(loadUsers, 300));
+    document.getElementById('u-search').addEventListener('input', debounce(renderUsers, 200));
 
     async function editUser(id) {
-      const [det, tools, groups] = await Promise.all([
-        api('GET', `/api/admin/users/${id}`),
-        api('GET', '/api/admin/tools'),
-        api('GET', '/api/admin/groups'),
+      const u = cachedUsers.find(x => x.id === id);
+      if (!u) return toast('Не найден', 'error');
+
+      const [toolsRes, userToolsRes] = await Promise.all([
+        sb.from('tools').select('*').order('id'),
+        sb.from('user_tools').select('tool_id').eq('user_id', id),
       ]);
-      if (!det.ok) return toast('Не найден', 'error');
-      allTools = tools.items || []; allGroups = groups.items || [];
-      const u = det.user;
-      const userToolIds = new Set((det.tools || []).map(t => t.id));
-      const userGroupIds = new Set((det.groups || []).map(g => g.id));
+      const allTools = toolsRes.data || [];
+      const userToolIds = new Set((userToolsRes.data || []).map(r => r.tool_id));
 
       openModal(`
         <h2>${esc(u.email)}</h2>
@@ -276,10 +261,10 @@
               <option value="blocked" ${u.status === 'blocked' ? 'selected' : ''}>заблокирован</option>
             </select>
           </div>
-          <p class="muted" style="font-size:12px">ID: ${u.id} · создан ${fmtDate(u.created_at)} · email подтверждён: ${u.email_verified ? 'да' : 'нет'}</p>
+          <p class="muted" style="font-size:12px">ID: ${u.id} · создан ${fmtDate(u.created_at)} · email подтверждён: ${u.email_confirmed_at ? 'да' : 'нет'}</p>
         </div>
         <div data-mp="access" hidden>
-          <h3>Прямые доступы к инструментам</h3>
+          <h3>Доступы к инструментам</h3>
           <div class="grid cols-2" style="margin-bottom:16px">
             ${allTools.map(t => `
               <label class="checkbox">
@@ -287,15 +272,6 @@
                 <span>${esc(t.name)} ${!t.enabled ? '<span class="tag tag-disabled">off</span>' : ''}</span>
               </label>
             `).join('')}
-          </div>
-          <h3>Группы</h3>
-          <div class="grid cols-2">
-            ${allGroups.length ? allGroups.map(g => `
-              <label class="checkbox">
-                <input type="checkbox" data-group="${g.id}" ${userGroupIds.has(g.id) ? 'checked' : ''}/>
-                <span>${esc(g.name)} <span class="muted">${g.tools || ''}</span></span>
-              </label>
-            `).join('') : '<p class="muted">Групп пока нет. Создай в разделе «Группы доступа».</p>'}
           </div>
         </div>
         <div class="modal-foot">
@@ -311,54 +287,66 @@
 
       document.getElementById('m-cancel').onclick = closeModal;
       document.getElementById('m-save').onclick = async () => {
-        const patch = await api('PATCH', `/api/admin/users/${id}`, {
-          name: document.getElementById('m-name').value,
+        const { error: profErr } = await sb.from('profiles').update({
+          name: document.getElementById('m-name').value || null,
           role: document.getElementById('m-role').value,
           status: document.getElementById('m-status').value,
-        });
-        if (!patch.ok) return toast('Не удалось сохранить', 'error');
+        }).eq('id', id);
+        if (profErr) return toast('Не удалось сохранить профиль', 'error');
 
-        const toolIds = [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool);
-        const groupIds = [...document.querySelectorAll('[data-group]:checked')].map(c => +c.dataset.group);
-        await api('PUT', `/api/admin/users/${id}/tools`, { tool_ids: toolIds });
-        await api('PUT', `/api/admin/users/${id}/groups`, { group_ids: groupIds });
+        const newToolIds = new Set(
+          [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool)
+        );
+        const toAdd = [...newToolIds].filter(tid => !userToolIds.has(tid));
+        const toRemove = [...userToolIds].filter(tid => !newToolIds.has(tid));
+
+        if (toAdd.length) {
+          await sb.from('user_tools').insert(toAdd.map(tid => ({ user_id: id, tool_id: tid })));
+        }
+        if (toRemove.length) {
+          await sb.from('user_tools').delete().eq('user_id', id).in('tool_id', toRemove);
+        }
 
         toast('Сохранено', 'success'); closeModal(); loadUsers();
       };
     }
 
     async function deleteUser(id) {
+      if (id === session.user.id) return toast('Нельзя удалить себя', 'error');
       if (!confirm('Удалить пользователя? Действие необратимо.')) return;
-      const r = await api('DELETE', `/api/admin/users/${id}`);
-      if (r.ok) { toast('Удалён', 'success'); loadUsers(); }
-      else toast(r.error === 'cant_delete_self' ? 'Нельзя удалить себя' : 'Ошибка', 'error');
+      const { error } = await sb.rpc('admin_delete_user', { target_id: id });
+      if (error) return toast(error.message?.includes('cant_delete_self') ? 'Нельзя удалить себя' : 'Ошибка удаления', 'error');
+      toast('Удалён', 'success'); loadUsers();
     }
 
-    // ============ Tools ============
+    // ---------- Tools ----------
     async function loadTools() {
-      const r = await api('GET', '/api/admin/tools');
-      if (!r.ok) return;
+      const { data, error } = await sb.from('tools').select('*').order('id');
+      if (error) return toast('Не удалось загрузить инструменты', 'error');
       const tbody = document.getElementById('t-tbody');
-      tbody.innerHTML = r.items.map(t => `
+      tbody.innerHTML = data.map(t => `
         <tr>
           <td><code style="font-size:12px">${esc(t.slug)}</code></td>
           <td>${esc(t.name)}</td>
           <td class="muted">${esc(t.description || '—')}</td>
           <td><span class="tag tag-${t.enabled ? 'active' : 'disabled'}">${t.enabled ? 'вкл' : 'выкл'}</span></td>
           <td class="row-actions">
-            <button class="btn btn-sm" data-toggle="${t.id}" data-state="${t.enabled}">${t.enabled ? 'Отключить' : 'Включить'}</button>
+            <button class="btn btn-sm" data-toggle="${t.id}" data-state="${t.enabled ? '1' : '0'}">${t.enabled ? 'Отключить' : 'Включить'}</button>
             <button class="btn btn-sm btn-danger" data-del="${t.id}">×</button>
           </td>
         </tr>
       `).join('') || `<tr><td colspan="5" class="muted">Инструментов нет.</td></tr>`;
 
       tbody.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
-        await api('PATCH', `/api/admin/tools/${b.dataset.toggle}`, { enabled: b.dataset.state === '0' ? 1 : 0 });
+        const next = b.dataset.state === '0';
+        const { error } = await sb.from('tools').update({ enabled: next }).eq('id', +b.dataset.toggle);
+        if (error) return toast('Ошибка', 'error');
         loadTools();
       }));
       tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
         if (!confirm('Удалить инструмент? Будут отозваны все доступы.')) return;
-        await api('DELETE', `/api/admin/tools/${b.dataset.del}`);
+        const { error } = await sb.from('tools').delete().eq('id', +b.dataset.del);
+        if (error) return toast('Ошибка', 'error');
         loadTools();
       }));
     }
@@ -377,122 +365,35 @@
       `);
       document.getElementById('nt-cancel').onclick = closeModal;
       document.getElementById('nt-save').onclick = async () => {
-        const r = await api('POST', '/api/admin/tools', {
-          slug: document.getElementById('nt-slug').value.trim(),
-          name: document.getElementById('nt-name').value.trim(),
-          description: document.getElementById('nt-desc').value.trim(),
-          icon: document.getElementById('nt-icon').value.trim(),
+        const slug = document.getElementById('nt-slug').value.trim();
+        const name = document.getElementById('nt-name').value.trim();
+        if (!slug || !name) return toast('Slug и название обязательны', 'error');
+        const { error } = await sb.from('tools').insert({
+          slug, name,
+          description: document.getElementById('nt-desc').value.trim() || null,
+          icon: document.getElementById('nt-icon').value.trim() || null,
         });
-        if (r.ok) { toast('Создан', 'success'); closeModal(); loadTools(); }
-        else toast(r.error === 'slug_taken' ? 'Slug уже занят' : 'Ошибка', 'error');
+        if (error) return toast(error.code === '23505' ? 'Slug уже занят' : 'Ошибка', 'error');
+        toast('Создан', 'success'); closeModal(); loadTools();
       };
     });
 
-    // ============ Groups ============
-    async function loadGroups() {
-      const [g, t] = await Promise.all([
-        api('GET', '/api/admin/groups'),
-        api('GET', '/api/admin/tools'),
-      ]);
-      if (!g.ok) return;
-      allTools = t.items || [];
-      const tbody = document.getElementById('g-tbody');
-      tbody.innerHTML = g.items.map(gr => `
-        <tr>
-          <td><strong>${esc(gr.name)}</strong>${gr.description ? `<div class="muted" style="font-size:12px">${esc(gr.description)}</div>` : ''}</td>
-          <td class="muted">${esc(gr.tools || '—')}</td>
-          <td>${gr.members}</td>
-          <td class="row-actions">
-            <button class="btn btn-sm" data-edit="${gr.id}">Инструменты</button>
-            <button class="btn btn-sm btn-danger" data-del="${gr.id}">×</button>
-          </td>
-        </tr>
-      `).join('') || `<tr><td colspan="4" class="muted">Групп пока нет.</td></tr>`;
+    // ---------- Groups / Logs (требуют отдельных таблиц — пока заглушки) ----------
+    document.querySelector('[data-panel="groups"]').innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0">Группы доступа</h2>
+        <p class="muted">Раздел появится позже. Требует таблиц <code>groups</code> и <code>group_tools</code> в БД.</p>
+        <p class="muted">Пока используй прямые доступы к инструментам в карточке пользователя (вкладка «Доступы»).</p>
+      </div>
+    `;
+    document.querySelector('[data-panel="logs"]').innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0">Журнал действий</h2>
+        <p class="muted">Раздел появится позже. Требует таблицы <code>audit_logs</code> и триггеров на ключевые операции.</p>
+      </div>
+    `;
 
-      tbody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editGroup(b.dataset.edit, g.items.find(x => x.id == b.dataset.edit))));
-      tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Удалить группу?')) return;
-        await api('DELETE', `/api/admin/groups/${b.dataset.del}`);
-        loadGroups();
-      }));
-    }
-
-    function editGroup(id, gr) {
-      const currentSlugs = new Set((gr.tools || '').split(',').filter(Boolean));
-      openModal(`
-        <h2>${esc(gr.name)}</h2>
-        <p class="muted">Выбери инструменты, которые получат участники группы.</p>
-        <div class="grid cols-2" style="margin-top:14px">
-          ${allTools.map(t => `
-            <label class="checkbox">
-              <input type="checkbox" data-tool="${t.id}" data-slug="${t.slug}" ${currentSlugs.has(t.slug) ? 'checked' : ''}/>
-              <span>${esc(t.name)}</span>
-            </label>
-          `).join('')}
-        </div>
-        <div class="modal-foot">
-          <button class="btn btn-ghost" id="gm-cancel">Отмена</button>
-          <button class="btn btn-primary" id="gm-save">Сохранить</button>
-        </div>
-      `);
-      document.getElementById('gm-cancel').onclick = closeModal;
-      document.getElementById('gm-save').onclick = async () => {
-        const ids = [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool);
-        const r = await api('PUT', `/api/admin/groups/${id}/tools`, { tool_ids: ids });
-        if (r.ok) { toast('Сохранено', 'success'); closeModal(); loadGroups(); }
-      };
-    }
-
-    document.getElementById('g-add-btn').addEventListener('click', async () => {
-      const t = await api('GET', '/api/admin/tools'); allTools = t.items || [];
-      openModal(`
-        <h2>Новая группа</h2>
-        <div class="field"><label>Название</label><input class="input" id="ng-name" /></div>
-        <div class="field"><label>Описание</label><input class="input" id="ng-desc" /></div>
-        <div class="field"><label>Инструменты в группе</label></div>
-        <div class="grid cols-2">
-          ${allTools.map(t => `
-            <label class="checkbox">
-              <input type="checkbox" data-tool="${t.id}" />
-              <span>${esc(t.name)}</span>
-            </label>
-          `).join('')}
-        </div>
-        <div class="modal-foot">
-          <button class="btn btn-ghost" id="ng-cancel">Отмена</button>
-          <button class="btn btn-primary" id="ng-save">Создать</button>
-        </div>
-      `);
-      document.getElementById('ng-cancel').onclick = closeModal;
-      document.getElementById('ng-save').onclick = async () => {
-        const ids = [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool);
-        const r = await api('POST', '/api/admin/groups', {
-          name: document.getElementById('ng-name').value.trim(),
-          description: document.getElementById('ng-desc').value.trim(),
-          tool_ids: ids,
-        });
-        if (r.ok) { toast('Создана', 'success'); closeModal(); loadGroups(); }
-        else toast(r.error === 'name_taken' ? 'Название уже занято' : 'Ошибка', 'error');
-      };
-    });
-
-    // ============ Logs ============
-    async function loadLogs() {
-      const r = await api('GET', '/api/admin/logs?limit=200');
-      if (!r.ok) return;
-      const tbody = document.getElementById('l-tbody');
-      tbody.innerHTML = r.items.map(l => `
-        <tr>
-          <td class="muted">${fmtDate(l.created_at)}</td>
-          <td>${esc(l.actor_email || '—')}</td>
-          <td><code style="font-size:12px">${esc(l.action)}</code></td>
-          <td>${esc(l.target || '—')}</td>
-          <td class="muted" style="font-family:'JetBrains Mono', monospace; font-size:11px">${esc(l.ip || '')}</td>
-        </tr>
-      `).join('') || `<tr><td colspan="5" class="muted">Логи пусты.</td></tr>`;
-    }
-
-    // ============ Modal infra ============
+    // ---------- Modal infra ----------
     function openModal(html) {
       const root = document.getElementById('modal-root');
       root.innerHTML = `<div class="modal-bg"><div class="modal">${html}</div></div>`;
@@ -506,7 +407,6 @@
       let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); };
     }
 
-    // Initial
     loadStats();
   })();
   </script>

@@ -320,3 +320,70 @@ INSERT INTO public.tools (slug, name, description, icon) VALUES
   ('ai',           'AI-ассистент',  'Проактивные напоминания и инсайты', '✦'),
   ('gamification', 'Геймификация',  'Очки, уровни, личный аватар', '★')
 ON CONFLICT (slug) DO NOTHING;
+
+-- =====================================================================
+-- ADMIN RPC: список пользователей (с email из auth.users), статистика, удаление
+-- =====================================================================
+CREATE OR REPLACE FUNCTION public.admin_list_users()
+RETURNS TABLE (
+  id UUID, email TEXT, name TEXT, avatar TEXT, role TEXT, status TEXT,
+  created_at TIMESTAMPTZ, last_login_at TIMESTAMPTZ, email_confirmed_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+  END IF;
+  RETURN QUERY
+    SELECT p.id, u.email::TEXT, p.name, p.avatar, p.role, p.status,
+      p.created_at, p.last_login_at, u.email_confirmed_at
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    ORDER BY p.created_at DESC;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_stats()
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+  END IF;
+  SELECT json_build_object(
+    'users_total',   (SELECT COUNT(*) FROM public.profiles),
+    'users_active',  (SELECT COUNT(*) FROM public.profiles WHERE status = 'active'),
+    'users_blocked', (SELECT COUNT(*) FROM public.profiles WHERE status = 'blocked'),
+    'admins',        (SELECT COUNT(*) FROM public.profiles WHERE role = 'admin'),
+    'tools_total',   (SELECT COUNT(*) FROM public.tools),
+    'tools_enabled', (SELECT COUNT(*) FROM public.tools WHERE enabled),
+    'new_today',     (SELECT COUNT(*) FROM public.profiles WHERE created_at > NOW() - INTERVAL '24 hours')
+  ) INTO result;
+  RETURN result;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_stats() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_delete_user(target_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+  END IF;
+  IF target_id = auth.uid() THEN
+    RAISE EXCEPTION 'cant_delete_self' USING ERRCODE = '22023';
+  END IF;
+  DELETE FROM auth.users WHERE id = target_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_delete_user(UUID) TO authenticated;
