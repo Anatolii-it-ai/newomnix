@@ -402,17 +402,28 @@ window.OmnixTools = {
             }).join('')}
           </div>`;
         } else {
+          // В list view сначала родительские задачи, под ними подзадачи с отступом
+          const ordered = [];
+          for (const it of rootItems) {
+            ordered.push({ task: it, depth: 0 });
+            for (const ch of (byParent.get(it.id) || [])) ordered.push({ task: ch, depth: 1 });
+          }
+          // Висячие подзадачи (если родитель удалён) — в конец без отступа
+          for (const it of items) {
+            if (it.parent_id && !ordered.some(x => x.task.id === it.id)) ordered.push({ task: it, depth: 0 });
+          }
           root.innerHTML = `<div class="card"><table class="table">
             <thead><tr><th></th><th>${esc(t('tasks.th_task'))}</th><th>${esc(t('tasks.th_sphere'))}</th><th>${esc(t('tasks.th_goal'))}</th><th>${esc(t('tasks.th_due'))}</th><th>${esc(t('tasks.th_estimate'))}</th><th></th></tr></thead>
-            <tbody>${items.map(it => `
-              <tr class="${it.status === 'done' ? 'task-done' : ''}">
+            <tbody>${ordered.map(({ task: it, depth }) => `
+              <tr class="${it.status === 'done' ? 'task-done' : ''}${depth ? ' subtask-row' : ''}">
                 <td><input type="checkbox" ${it.status === 'done' ? 'checked' : ''} data-toggle="${it.id}"/></td>
-                <td>${esc(it.title)}</td>
+                <td>${depth ? '<span class="muted" style="margin-right:6px">↳</span>' : ''}${esc(it.title)}${it.recurrence ? ' <span class="task-recurrence-icon">↻</span>' : ''}</td>
                 <td>${it.sphere ? `<span class="tag" style="background:${SPHERE_COLORS[it.sphere]}30; color:${SPHERE_COLORS[it.sphere]}">${esc(tSphere(it.sphere))}</span>` : '—'}</td>
                 <td class="muted">${esc(it.goal_title || '—')}</td>
                 <td class="muted">${ruDate(it.due_date)}</td>
                 <td class="muted">${it.estimate_min ? it.estimate_min + 'm' : '—'}</td>
                 <td class="row-actions">
+                  ${!it.parent_id ? `<button class="btn btn-sm" data-add-sub="${it.id}" title="${esc(t('common.subtask_add'))}">+↳</button>` : ''}
                   <button class="btn btn-sm" data-edit="${it.id}">⋯</button>
                   <button class="btn btn-sm btn-danger" data-del="${it.id}">×</button>
                 </td>
@@ -441,9 +452,17 @@ window.OmnixTools = {
           if (!confirm(t('tasks.confirm_delete'))) return;
           await sb.from('tasks').delete().eq('id', b.dataset.del); reload();
         });
+        root.querySelectorAll('[data-add-sub]').forEach(b => {
+          b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const parent = items.find(x => x.id == b.dataset.addSub);
+            // Создаём новую задачу с предзаполненным parent_id (наследуем сферу/цель/квадрант)
+            taskForm(null, parent);
+          });
+        });
         root.querySelectorAll('.matrix-task').forEach(el => {
           el.addEventListener('click', (e) => {
-            if (e.target.tagName === 'INPUT') return;
+            if (e.target.tagName === 'INPUT' || e.target.dataset?.addSub) return;
             taskForm(items.find(x => x.id == el.dataset.id));
           });
         });
@@ -452,36 +471,46 @@ window.OmnixTools = {
       function taskRow(it) {
         const recIcon = it.recurrence ? `<span class="task-recurrence-icon" title="${esc(t('common.recurrence'))}: ${esc(t('common.recurrence_' + it.recurrence))}">↻</span>` : '';
         const subtaskCls = it.parent_id ? ' subtask' : '';
+        // Кнопка «+ подзадача» только у задач верхнего уровня (не у самих подзадач)
+        const addSubBtn = !it.parent_id ? `<button class="task-add-sub" data-add-sub="${it.id}" title="${esc(t('common.subtask_add'))}" type="button">+</button>` : '';
         return `
           <div class="matrix-task${subtaskCls} ${it.status === 'done' ? 'done' : ''}" data-id="${it.id}">
             <input type="checkbox" data-toggle="${it.id}" ${it.status === 'done' ? 'checked' : ''}/>
             <span>${esc(it.title)}${recIcon}</span>
             ${it.estimate_min ? `<em>${it.estimate_min}m</em>` : ''}
+            ${addSubBtn}
           </div>
         `;
       }
 
-      function taskForm(tk) {
+      function taskForm(tk, parentTask) {
         // Список потенциальных родителей: только задачи без parent_id (топ-уровень) и не сама задача
         const parentCandidates = (window._allTasks || []).filter(x => !x.parent_id && (!tk || x.id !== tk.id));
+        // Если открываем форму как «+ подзадача» — наследуем основные параметры от родителя
+        const initParentId = tk?.parent_id ?? parentTask?.id ?? null;
+        const initSphere = tk?.sphere ?? parentTask?.sphere ?? null;
+        const initGoalId = tk?.goal_id ?? parentTask?.goal_id ?? null;
+        const initQuadrant = tk?.quadrant ?? parentTask?.quadrant ?? 2;
+        const formTitle = tk ? t('tasks.edit_title') : (parentTask ? t('common.subtask_add').replace('+ ', '') + ' · ' + parentTask.title : t('tasks.new_title'));
         modalOpen(`
-          <h2>${tk ? esc(t('tasks.edit_title')) : esc(t('tasks.new_title'))}</h2>
-          <div class="field"><label>${esc(t('tasks.what'))}</label><input class="input" id="tf-title" value="${tk ? esc(tk.title) : ''}" /></div>
+          <h2>${esc(formTitle)}</h2>
+          ${parentTask ? `<p class="muted" style="margin-top:-8px">↳ ${esc(parentTask.title)}</p>` : ''}
+          <div class="field"><label>${esc(t('tasks.what'))}</label><input class="input" id="tf-title" value="${tk ? esc(tk.title) : ''}" autofocus/></div>
           <div class="grid cols-2" style="gap:14px">
             <div class="field"><label>${esc(t('tasks.quadrant'))}</label><select class="input" id="tf-q">
-              ${[1, 2, 3, 4].map(q => `<option value="${q}" ${(tk?.quadrant || 2) == q ? 'selected' : ''}>${esc(tQuadrant(q))}</option>`).join('')}
+              ${[1, 2, 3, 4].map(q => `<option value="${q}" ${initQuadrant == q ? 'selected' : ''}>${esc(tQuadrant(q))}</option>`).join('')}
             </select></div>
             <div class="field"><label>${esc(t('tasks.sphere'))}</label><select class="input" id="tf-sphere">
               <option value="">—</option>
-              ${SPHERES.map(s => `<option value="${s}" ${tk?.sphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
+              ${SPHERES.map(s => `<option value="${s}" ${initSphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
             </select></div>
             <div class="field"><label>${esc(t('tasks.goal'))}</label><select class="input" id="tf-goal">
               <option value="">—</option>
-              ${goals.map(g => `<option value="${g.id}" ${tk?.goal_id == g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
+              ${goals.map(g => `<option value="${g.id}" ${initGoalId == g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
             </select></div>
             <div class="field"><label>${esc(t('common.parent_task'))}</label><select class="input" id="tf-parent">
               <option value="">${esc(t('common.parent_none'))}</option>
-              ${parentCandidates.map(p => `<option value="${p.id}" ${tk?.parent_id == p.id ? 'selected' : ''}>${esc(p.title)}</option>`).join('')}
+              ${parentCandidates.map(p => `<option value="${p.id}" ${initParentId == p.id ? 'selected' : ''}>${esc(p.title)}</option>`).join('')}
             </select></div>
             <div class="field"><label>${esc(t('tasks.due'))}</label><input class="input" type="date" id="tf-due" value="${tk?.due_date || ''}"/></div>
             <div class="field"><label>${esc(t('tasks.estimate'))}</label><input class="input" type="number" id="tf-est" value="${tk?.estimate_min || ''}"/></div>

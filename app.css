@@ -904,6 +904,27 @@ button { font-family: inherit; cursor: pointer; }
   display: flex; flex-direction: column; gap: 4px;
 }
 .matrix-task.subtask { padding-left: 10px; opacity: 0.85; font-size: 12px; }
+.task-add-sub {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-dim);
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  font-size: 14px; line-height: 1;
+  cursor: pointer; margin-left: auto;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.task-add-sub:hover {
+  background: var(--surface-2);
+  color: var(--violet);
+  border-color: var(--violet);
+  border-style: solid;
+}
+tr.subtask-row td:first-of-type + td {
+  padding-left: 24px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
 
 /* Wheel manager modal rows */
 .wm-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 4px 2px; }
