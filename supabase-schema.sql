@@ -156,6 +156,8 @@ ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS parent_id BIGINT REFERENCES pu
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON public.tasks(parent_id);
 -- Повторяемость: 'none' | 'daily' | 'weekly' | 'monthly'
 ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS recurrence TEXT;
+-- Горизонт цели: '1y' | '5y' | '10y' | '15y' | NULL (краткосрочная)
+ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS horizon TEXT;
 
 -- ========================
 -- 5. HABITS

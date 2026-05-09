@@ -237,13 +237,25 @@ window.OmnixTools = {
   goals: {
     title: 'Цели — карта жизни',
     async render(c) {
+      let activeHorizon = ''; // '' = все, '1y'|'5y'|'10y'|'15y' = фильтр
       c.innerHTML = `
-        <div class="toolbar" style="justify-content: space-between">
+        <div class="toolbar">
+          <button class="tab-btn active" data-h="">${esc(t('goals.filter_all'))}</button>
+          <button class="tab-btn" data-h="1y">${esc(t('goals.horizon_1y'))}</button>
+          <button class="tab-btn" data-h="5y">${esc(t('goals.horizon_5y'))}</button>
+          <button class="tab-btn" data-h="10y">${esc(t('goals.horizon_10y'))}</button>
+          <button class="tab-btn" data-h="15y">${esc(t('goals.horizon_15y'))}</button>
+          <span style="flex:1"></span>
           <span class="muted" id="goals-count"></span>
           <button class="btn btn-primary" id="goal-add">${esc(t('goals.new_btn'))}</button>
         </div>
         <div id="goals-list" class="grid cols-2"></div>
       `;
+      c.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => {
+        c.querySelectorAll('.tab-btn').forEach(x => x.classList.toggle('active', x === b));
+        activeHorizon = b.dataset.h;
+        load();
+      });
       load();
       document.getElementById('goal-add').onclick = () => formGoal();
 
@@ -267,20 +279,27 @@ window.OmnixTools = {
           g.tasks_done = cc.done; g.tasks_total = cc.total;
         }
 
-        document.getElementById('goals-count').textContent = t('goals.total', { n: goals.length });
+        // Фильтр по горизонту
+        const filtered = activeHorizon
+          ? goals.filter(g => (g.horizon || '') === activeHorizon)
+          : goals;
+        document.getElementById('goals-count').textContent = t('goals.total', { n: filtered.length });
         const list = document.getElementById('goals-list');
-        if (!goals.length) {
+        if (!filtered.length) {
           list.innerHTML = `<div class="tool-empty" style="grid-column:1/-1">${esc(t('goals.empty'))}</div>`;
           return;
         }
-        list.innerHTML = goals.map(g => {
+        const horizonLabel = (h) => h ? t('goals.horizon_' + h) : t('goals.section_short');
+        list.innerHTML = filtered.map(g => {
           const accent = SPHERE_COLORS[g.sphere] || '#7C5CFF';
           const due = g.target_date ? t('goals.until', { date: ruDate(g.target_date) }) : '';
+          const horizonBadge = g.horizon ? `<span class="tag" style="background:rgba(124,92,255,0.15); color:var(--violet)">${esc(horizonLabel(g.horizon))}</span>` : '';
           return `
             <div class="card goal-card" style="--accent:${accent}">
-              <div class="goal-head">
+              <div class="goal-head" style="flex-wrap:wrap; gap:6px">
                 <span class="tag" style="background:${accent}30; color:${accent}">${esc(g.sphere ? tSphere(g.sphere) : t('goals.no_sphere'))}</span>
-                <span class="muted" style="font-size:12px">${esc(due)}</span>
+                ${horizonBadge}
+                <span class="muted" style="font-size:12px; margin-left:auto">${esc(due)}</span>
               </div>
               <h3 style="margin:10px 0 4px">${esc(g.title)}</h3>
               ${g.description ? `<p class="muted" style="font-size:13px; margin:0 0 12px">${esc(g.description)}</p>` : ''}
@@ -308,10 +327,19 @@ window.OmnixTools = {
         modalOpen(`
           <h2>${g ? esc(t('goals.edit_title')) : esc(t('goals.new_title'))}</h2>
           <div class="field"><label>${esc(t('goals.title'))}</label><input class="input" id="gf-title" value="${g ? esc(g.title) : ''}" /></div>
-          <div class="field"><label>${esc(t('goals.sphere'))}</label><select class="input" id="gf-sphere">
-            <option value="">${esc(t('goals.no_sphere'))}</option>
-            ${SPHERES.map(s => `<option value="${s}" ${g?.sphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
-          </select></div>
+          <div class="grid cols-2" style="gap:14px">
+            <div class="field"><label>${esc(t('goals.sphere'))}</label><select class="input" id="gf-sphere">
+              <option value="">${esc(t('goals.no_sphere'))}</option>
+              ${SPHERES.map(s => `<option value="${s}" ${g?.sphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
+            </select></div>
+            <div class="field"><label>${esc(t('goals.horizon'))}</label><select class="input" id="gf-horizon">
+              <option value="" ${!g?.horizon ? 'selected' : ''}>${esc(t('goals.horizon_short'))}</option>
+              <option value="1y" ${g?.horizon === '1y' ? 'selected' : ''}>${esc(t('goals.horizon_1y'))}</option>
+              <option value="5y" ${g?.horizon === '5y' ? 'selected' : ''}>${esc(t('goals.horizon_5y'))}</option>
+              <option value="10y" ${g?.horizon === '10y' ? 'selected' : ''}>${esc(t('goals.horizon_10y'))}</option>
+              <option value="15y" ${g?.horizon === '15y' ? 'selected' : ''}>${esc(t('goals.horizon_15y'))}</option>
+            </select></div>
+          </div>
           <div class="field"><label>${esc(t('goals.description'))}</label><textarea class="input" id="gf-desc" rows="3">${g ? esc(g.description || '') : ''}</textarea></div>
           <div class="field"><label>${esc(t('goals.deadline'))}</label><input class="input" id="gf-date" type="date" value="${g?.target_date || ''}" /></div>
           <div class="field"><label>${esc(t('goals.progress', { n: '<span id="gf-pv">' + (g?.progress || 0) + '</span>' }))}</label>
@@ -327,6 +355,7 @@ window.OmnixTools = {
             user_id: uid,
             title: document.getElementById('gf-title').value.trim(),
             sphere: document.getElementById('gf-sphere').value || null,
+            horizon: document.getElementById('gf-horizon').value || null,
             description: document.getElementById('gf-desc').value || null,
             target_date: document.getElementById('gf-date').value || null,
             progress: +document.getElementById('gf-progress').value,

@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=15" />
+  <link rel="stylesheet" href="app.css?v=16" />
   <style>
     .sphere-label rect {
       transition: fill .15s ease, stroke .15s ease;
@@ -113,10 +113,39 @@
           </div>
         </div>
 
+        <div class="grid cols-3" style="margin-bottom:24px">
+          <div class="card widget-card" id="w-streak-card">
+            <h2 data-i18n="dashboard.w_streak_title" style="margin:0">Серия</h2>
+            <p class="muted" style="margin: 4px 0 0; font-size: 12px" data-i18n="dashboard.w_streak_sub">Дней подряд с активностью</p>
+            <div class="w-streak-num" id="w-streak-num">—</div>
+            <p class="w-streak-label" id="w-streak-label">—</p>
+          </div>
+          <div class="card widget-card" id="w-weekly-card">
+            <h2 data-i18n="dashboard.w_weekly_title" style="margin:0">Прогресс за неделю</h2>
+            <p class="muted" style="margin: 4px 0 14px; font-size: 12px" data-i18n="dashboard.w_weekly_sub">Последние 7 дней</p>
+            <div id="w-weekly-body"></div>
+          </div>
+          <div class="card widget-card" id="w-habits-card">
+            <h2 data-i18n="dashboard.w_habits_title" style="margin:0">Привычки за месяц</h2>
+            <p class="muted" style="margin: 4px 0 12px; font-size: 12px" data-i18n="dashboard.w_habits_sub">30 дней, % выполнения каждого дня</p>
+            <div class="w-bars" id="w-habits-bars"></div>
+            <p class="muted" id="w-habits-empty" style="display:none; text-align:center; padding:8px" data-i18n="dashboard.w_habits_no_data">Нет привычек — заведи первую</p>
+          </div>
+        </div>
+
         <div class="card">
-          <h2 data-i18n="dashboard.quickstart_title">Быстрый старт</h2>
-          <p class="muted" style="margin-top:-8px" data-i18n="dashboard.quickstart_sub">Открой любой подключённый инструмент.</p>
-          <div id="ov-tools-grid" class="grid cols-2" style="margin-top:14px"></div>
+          <h2 data-i18n="dashboard.w_heatmap_title" style="margin:0">Тепловая карта активности</h2>
+          <p class="muted" style="margin: 4px 0 14px; font-size: 12px" data-i18n="dashboard.w_heatmap_sub">Год — отметки привычек и закрытые задачи</p>
+          <div class="heatmap-wrap"><div id="w-heatmap-grid"></div></div>
+          <div class="heatmap-legend">
+            <span data-i18n="common.heatmap_legend_less">меньше</span>
+            <span class="hm-cell"></span>
+            <span class="hm-cell" data-c="1"></span>
+            <span class="hm-cell" data-c="2"></span>
+            <span class="hm-cell" data-c="3"></span>
+            <span class="hm-cell" data-c="4"></span>
+            <span data-i18n="common.heatmap_legend_more">больше</span>
+          </div>
         </div>
       </section>
 
@@ -1097,15 +1126,153 @@
     document.addEventListener('langchange', () => {
       loadOverviewData();
       loadTools();
+      loadWidgets();
       const tabTitles = t('dashboard.tab_titles') || {};
       document.getElementById('page-title').textContent = tabTitles[activeTab] || activeTab;
     });
+
+    // Аналитические виджеты на главной (стрик, неделя, месяц привычек, тепловая карта)
+    async function loadWidgets() {
+      const today = new Date();
+      const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const todayIso = toIso(today);
+      const daysAgoIso = (n) => { const d = new Date(today); d.setDate(today.getDate() - n); return toIso(d); };
+
+      // Загружаем разом всё что нужно
+      const [habitsRes, logsRes, tasksDoneRes] = await Promise.all([
+        sb.from('habits').select('id, name').eq('user_id', user.id).eq('archived', false),
+        sb.from('habit_logs').select('habit_id, date').gte('date', daysAgoIso(364)),
+        sb.from('tasks').select('id, completed_at').eq('user_id', user.id).not('completed_at', 'is', null).gte('completed_at', daysAgoIso(364) + 'T00:00:00'),
+      ]);
+      const habits = habitsRes.data || [];
+      const allLogs = logsRes.data || [];
+      const allTasksDone = tasksDoneRes.data || [];
+      // Логи только своих привычек (на случай если пользователь чужих не должен видеть, но RLS тоже фильтрует)
+      const habitIds = new Set(habits.map(h => h.id));
+      const myLogs = allLogs.filter(l => habitIds.has(l.habit_id));
+
+      // ----- Streak: дней подряд с любой активностью (привычка отмечена ИЛИ задача закрыта) -----
+      const activityDates = new Set();
+      for (const l of myLogs) activityDates.add(l.date);
+      for (const t of allTasksDone) {
+        if (t.completed_at) activityDates.add(t.completed_at.slice(0, 10));
+      }
+      let streak = 0;
+      const cur = new Date(today);
+      while (activityDates.has(toIso(cur))) {
+        streak++;
+        cur.setDate(cur.getDate() - 1);
+      }
+      const numEl = $('w-streak-num');
+      const lblEl = $('w-streak-label');
+      if (numEl) numEl.textContent = streak;
+      if (lblEl) {
+        if (streak === 0) lblEl.textContent = t('dashboard.w_streak_none');
+        else if (streak === 1) lblEl.textContent = t('dashboard.w_streak_day');
+        else if (streak < 5) lblEl.textContent = t('dashboard.w_streak_days_few');
+        else lblEl.textContent = t('dashboard.w_streak_days');
+      }
+
+      // ----- Weekly progress: задачи закрыты + привычки отмечены за 7 дней -----
+      const sevenAgo = daysAgoIso(6);
+      const tasksDoneWeek = allTasksDone.filter(x => x.completed_at && x.completed_at.slice(0, 10) >= sevenAgo).length;
+      const habitsLoggedWeek = myLogs.filter(l => l.date >= sevenAgo).length;
+      const habitsPossibleWeek = habits.length * 7;
+      const habitsPct = habitsPossibleWeek ? Math.round(habitsLoggedWeek / habitsPossibleWeek * 100) : 0;
+      // Tasks: рассчитаем относительно «среднего» — пусть 100% это 14 за неделю (произвольно)
+      const tasksTarget = 14;
+      const tasksPct = Math.min(100, Math.round(tasksDoneWeek / tasksTarget * 100));
+      const wEl = $('w-weekly-body');
+      if (wEl) {
+        wEl.innerHTML = `
+          <div class="w-progress-row">
+            <span class="label">${esc(t('dashboard.w_weekly_tasks'))}</span>
+            <div class="bar"><i style="width:${tasksPct}%"></i></div>
+            <span class="val">${tasksDoneWeek}</span>
+          </div>
+          <div class="w-progress-row">
+            <span class="label">${esc(t('dashboard.w_weekly_habits'))}</span>
+            <div class="bar"><i style="width:${habitsPct}%"></i></div>
+            <span class="val">${habitsLoggedWeek}/${habitsPossibleWeek || 0}</span>
+          </div>
+        `;
+      }
+
+      // ----- Monthly habits chart: % выполнения за каждый из 30 дней -----
+      const barsEl = $('w-habits-bars');
+      const emptyEl = $('w-habits-empty');
+      if (barsEl && emptyEl) {
+        if (!habits.length) {
+          barsEl.style.display = 'none';
+          emptyEl.style.display = 'block';
+        } else {
+          barsEl.style.display = '';
+          emptyEl.style.display = 'none';
+          const days = [];
+          for (let i = 29; i >= 0; i--) days.push(daysAgoIso(i));
+          const total = habits.length;
+          const dayPct = days.map(d => {
+            const c = myLogs.filter(l => l.date === d).length;
+            return Math.round(c / total * 100);
+          });
+          barsEl.innerHTML = days.map((d, i) => {
+            const p = dayPct[i];
+            const cls = p >= 75 ? 'high' : p >= 35 ? 'med' : p > 0 ? 'low' : '';
+            return `<div class="w-bar ${cls}" style="height: ${Math.max(4, p)}%" title="${d}: ${p}%"></div>`;
+          }).join('');
+        }
+      }
+
+      // ----- Heatmap года: совмещаем привычки и закрытые задачи -----
+      const heatGrid = $('w-heatmap-grid');
+      if (heatGrid) {
+        const counts = new Map();
+        for (const l of myLogs) counts.set(l.date, (counts.get(l.date) || 0) + 1);
+        for (const tk of allTasksDone) {
+          if (tk.completed_at) {
+            const d = tk.completed_at.slice(0, 10);
+            counts.set(d, (counts.get(d) || 0) + 1);
+          }
+        }
+        const start = new Date(today);
+        start.setDate(today.getDate() - 364);
+        while (start.getDay() !== 1) start.setDate(start.getDate() - 1);
+        const totalCells = 53 * 7;
+        const cells = [];
+        const maxC = Math.max(1, ...counts.values());
+        for (let i = 0; i < totalCells; i++) {
+          const d = new Date(start); d.setDate(start.getDate() + i);
+          const iso = toIso(d);
+          const c = counts.get(iso) || 0;
+          const lvl = c === 0 ? 0 : Math.min(4, Math.ceil(c / maxC * 4));
+          cells.push({ iso, c, lvl });
+        }
+        const sample = new Date(2024, 0, 1);
+        const dayShort = (offset) => {
+          const dd = new Date(sample); dd.setDate(sample.getDate() + offset);
+          return dd.toLocaleDateString(localeOf(), { weekday: 'short' });
+        };
+        heatGrid.innerHTML = `
+          <div class="heatmap">
+            <div class="hm-day-labels">
+              <div></div><div>${esc(dayShort(0))}</div><div></div>
+              <div>${esc(dayShort(2))}</div><div></div>
+              <div>${esc(dayShort(4))}</div><div></div>
+            </div>
+            <div class="hm-grid">
+              ${cells.map(x => `<div class="hm-cell" data-c="${x.lvl}" title="${x.iso}: ${x.c}"></div>`).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
 
     // Initial load — каждый блок изолирован, ошибка в одном не ломает остальные
     Promise.resolve().then(loadNotifications).catch(e => console.error('loadNotifications', e));
     Promise.resolve().then(loadTools).catch(e => console.error('loadTools', e));
     Promise.resolve().then(loadSubscription).catch(e => console.error('loadSubscription', e));
     Promise.resolve().then(loadOverviewData).catch(e => console.error('loadOverviewData', e));
+    Promise.resolve().then(loadWidgets).catch(e => console.error('loadWidgets', e));
   })().catch(e => console.error('dashboard init', e));
   </script>
 </body>

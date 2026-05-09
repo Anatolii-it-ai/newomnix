@@ -737,6 +737,71 @@ button { font-family: inherit; cursor: pointer; }
 .badge-icon { font-size: 36px; margin-bottom: 8px; }
 .badge-card strong { font-size: 12px; }
 
+/* ============= Dashboard widgets ============= */
+.widget-card {
+  display: flex; flex-direction: column;
+  min-height: 160px;
+}
+.w-streak-num {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin: 24px 0 6px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.w-streak-label {
+  text-align: center;
+  color: var(--text-mute);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+.w-progress-row {
+  display: flex; align-items: center; gap: 12px;
+  margin: 10px 0;
+}
+.w-progress-row .label { width: 120px; flex-shrink: 0; font-size: 12px; color: var(--text-dim); }
+.w-progress-row .bar {
+  flex: 1; height: 8px; min-width: 0;
+  background: var(--surface-2); border-radius: 4px; overflow: hidden;
+}
+.w-progress-row .bar i {
+  display: block; height: 100%;
+  background: var(--grad); border-radius: 4px;
+  transition: width .4s ease;
+}
+.w-progress-row .val {
+  font-size: 13px; font-weight: 700;
+  min-width: 50px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.w-bars {
+  display: flex; gap: 2px; align-items: end;
+  height: 80px; padding-top: 6px;
+}
+.w-bar {
+  flex: 1; min-width: 3px;
+  background: var(--surface-2);
+  border-radius: 2px 2px 0 0;
+  transition: opacity .2s, background .2s;
+}
+.w-bar.high { background: var(--violet); }
+.w-bar.med { background: rgba(124,92,255,0.6); }
+.w-bar.low { background: rgba(124,92,255,0.32); }
+.w-bar:hover { opacity: 0.85; outline: 1px solid var(--border-strong); }
+@media (max-width: 720px) {
+  .w-streak-num { font-size: 44px; margin: 18px 0 4px; }
+  .widget-card { min-height: 130px; }
+  .w-progress-row .label { width: 90px; font-size: 11px; }
+  .w-bars { height: 60px; }
+}
+
 /* ============= Skeleton loaders ============= */
 .skeleton {
   background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
