@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=13" />
+  <link rel="stylesheet" href="app.css?v=14" />
   <style>
     .sphere-label rect {
       transition: fill .15s ease, stroke .15s ease;
@@ -214,29 +214,12 @@
   <script src="palette.js?v=1"></script>
   <script>
   (async () => {
-    renderLangSwitcher('lang-switch');
-    renderThemeToggle('theme-toggle');
-    document.getElementById('search-btn').addEventListener('click', () => openCommandPalette());
-    const session = await requireAuth();
-    if (!session) return;
+    // Помощник: вешаем обработчик только если элемент есть
+    const $ = (id) => document.getElementById(id);
+    const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-    // Клик по логотипу — НЕ выходить из кабинета, а переключиться на «Обзор».
-    document.querySelectorAll('.brand').forEach(a => {
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('overview');
-      });
-    });
-
-    const profile = await omxGetProfile();
-    const user = session.user;
-    const displayName = profile?.name || user.user_metadata?.name || user.email;
-
-    document.getElementById('topbar-name').textContent = displayName;
-    document.getElementById('topbar-avatar').textContent = displayName[0].toUpperCase();
-    if (profile?.role === 'admin') document.getElementById('admin-link').style.display = 'block';
-
-    // Tabs
+    // ВАЖНО: табы и базовые обработчики привязываем ПЕРВЫМИ — даже если позже
+    // что-то упадёт (сеть/БД), пользователь всё равно сможет переключаться по кабинету.
     let activeTab = 'overview';
     const links = document.querySelectorAll('[data-tab]');
     const panels = document.querySelectorAll('[data-panel]');
@@ -244,30 +227,57 @@
       activeTab = name;
       links.forEach(l => l.classList.toggle('active', l.dataset.tab === name));
       panels.forEach(p => p.hidden = p.dataset.panel !== name);
-      const tabTitles = t('dashboard.tab_titles') || {};
-      document.getElementById('page-title').textContent = tabTitles[name] || name;
-      if (name === 'tools') loadTools();
-      if (name === 'notifications') loadNotificationsPage();
-      if (name === 'profile') loadProfile();
-      if (name === 'subscription') loadSubscription();
+      const tabTitles = (typeof t === 'function' && t('dashboard.tab_titles')) || {};
+      const titleEl = $('page-title');
+      if (titleEl) titleEl.textContent = tabTitles[name] || name;
+      try {
+        if (name === 'tools') loadTools();
+        if (name === 'notifications') loadNotificationsPage();
+        if (name === 'profile') loadProfile();
+        if (name === 'subscription') loadSubscription();
+      } catch (e) { console.error('tab loader error', e); }
     }
     links.forEach(l => l.addEventListener('click', (e) => {
       if (l.tagName === 'A' && l.getAttribute('href')) return;
       e.preventDefault(); activate(l.dataset.tab);
     }));
-
-    // Logout
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-      await omxLogout();
+    document.querySelectorAll('.brand').forEach(a => {
+      a.addEventListener('click', (e) => { e.preventDefault(); activate('overview'); });
+    });
+    on($('logout-btn'), 'click', async () => {
+      try { await omxLogout(); } catch {}
       location.href = 'login.html';
     });
+    on($('search-btn'), 'click', () => {
+      if (typeof openCommandPalette === 'function') openCommandPalette();
+    });
+    if (typeof renderLangSwitcher === 'function') renderLangSwitcher('lang-switch');
+    if (typeof renderThemeToggle === 'function') renderThemeToggle('theme-toggle');
+
+    let session = null;
+    try {
+      session = await requireAuth();
+    } catch (e) { console.error('auth error', e); }
+    if (!session) return;
+
+    let profile = null;
+    try { profile = await omxGetProfile(); } catch (e) { console.error('profile error', e); }
+    const user = session.user;
+    const displayName = (profile && profile.name) || user.user_metadata?.name || user.email || 'User';
+    const firstChar = (displayName && displayName.length) ? displayName.charAt(0).toUpperCase() : '?';
+
+    if ($('topbar-name')) $('topbar-name').textContent = displayName;
+    if ($('topbar-avatar')) $('topbar-avatar').textContent = firstChar;
+    if (profile?.role === 'admin' && $('admin-link')) $('admin-link').style.display = 'block';
 
     // Notifications bell — пустой, пока не наполнится таблица
-    const bell = document.getElementById('bell');
-    const dropdown = document.getElementById('bell-dropdown');
-    bell.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.toggle('hidden'); });
-    document.addEventListener('click', () => dropdown.classList.add('hidden'));
-    dropdown.addEventListener('click', (e) => e.stopPropagation());
+    const bell = $('bell');
+    const dropdown = $('bell-dropdown');
+    if (bell && dropdown) {
+      bell.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.toggle('hidden'); });
+      document.addEventListener('click', () => dropdown.classList.add('hidden'));
+      dropdown.addEventListener('click', (e) => e.stopPropagation());
+    }
 
     async function loadNotifications() {
       const { data, error } = await sb
@@ -350,13 +360,16 @@
     }
 
     async function loadOverviewData() {
-      // Time-of-day greeting
+      // Time-of-day greeting — снимаем скелетоны сразу с минимальным контентом,
+      // чтобы UI был живой даже если БД ответит с задержкой/ошибкой.
       const hour = new Date().getHours();
       const greetKey = hour < 6 ? 'greet.night' : hour < 12 ? 'greet.morning' : hour < 18 ? 'greet.day' : 'greet.evening';
-      const gEl = document.getElementById('ov-greeting');
-      const uEl = document.getElementById('ov-username');
-      gEl.textContent = t(greetKey); gEl.classList.remove('skeleton');
-      uEl.textContent = displayName; uEl.classList.remove('skeleton'); uEl.style.width = '';
+      const gEl = $('ov-greeting');
+      const uEl = $('ov-username');
+      if (gEl) { gEl.textContent = t(greetKey); gEl.classList.remove('skeleton'); }
+      if (uEl) { uEl.textContent = displayName; uEl.classList.remove('skeleton'); uEl.style.width = ''; }
+      const sumEl = $('ov-today-summary');
+      if (sumEl) { sumEl.textContent = '…'; sumEl.classList.remove('skeleton'); sumEl.style.width = ''; }
 
       const today = new Date();
       const todayStr = toDateStr(today);
@@ -384,8 +397,8 @@
       if (habitsLeft > 0) summaryParts.push(t('dashboard.hero_habits_left', { left: habitsLeft, total: habits.length }));
       else if (habits.length) summaryParts.push(t('dashboard.hero_habits_done', { total: habits.length }));
       if (todaysTasks.length) summaryParts.push(t('dashboard.hero_tasks', { count: todaysTasks.length }));
-      const sEl = document.getElementById('ov-today-summary');
-      sEl.innerHTML = summaryParts.join(' '); sEl.classList.remove('skeleton'); sEl.style.width = '';
+      const sEl2 = $('ov-today-summary');
+      if (sEl2) { sEl2.innerHTML = summaryParts.join(' '); sEl2.classList.remove('skeleton'); sEl2.style.width = ''; }
 
       // Wheel render — SVG with editable scores + clickable spheres
       // Если у пользователя ещё нет сфер (миграция не отработала / новый юзер) — рендерим дефолтные 8 как fallback
@@ -865,7 +878,7 @@
       else toast(t('common.error_with_msg', { msg: r.error || '' }), 'error');
     });
 
-    document.getElementById('del-account-btn').addEventListener('click', async () => {
+    on($('del-account-btn'), 'click', async () => {
       if (!confirm(t('common.danger_account_warn'))) return;
       const phrase = t('common.delete_account_phrase');
       const typed = prompt(t('common.delete_account_confirm'));
@@ -877,7 +890,7 @@
     });
 
     // ---------- Менеджер сфер: добавлять / удалять / переименовывать / выбирать цвет / переставлять ----------
-    document.getElementById('wheel-edit-btn').addEventListener('click', () => openWheelManager());
+    on($('wheel-edit-btn'), 'click', () => openWheelManager());
 
     function openWheelManager() {
       // local working copy + tracking original names for renames
@@ -1072,12 +1085,12 @@
       document.getElementById('page-title').textContent = tabTitles[activeTab] || activeTab;
     });
 
-    // Initial load
-    loadNotifications();
-    loadTools();
-    loadSubscription();
-    loadOverviewData();
-  })();
+    // Initial load — каждый блок изолирован, ошибка в одном не ломает остальные
+    Promise.resolve().then(loadNotifications).catch(e => console.error('loadNotifications', e));
+    Promise.resolve().then(loadTools).catch(e => console.error('loadTools', e));
+    Promise.resolve().then(loadSubscription).catch(e => console.error('loadSubscription', e));
+    Promise.resolve().then(loadOverviewData).catch(e => console.error('loadOverviewData', e));
+  })().catch(e => console.error('dashboard init', e));
   </script>
 </body>
 </html>

@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=13" />
+  <link rel="stylesheet" href="app.css?v=14" />
 </head>
 <body>
   <div class="shell">
@@ -63,18 +63,27 @@
   <script src="tools.js?v=8"></script>
   <script>
   (async () => {
-    renderLangSwitcher('lang-switch');
-    renderThemeToggle('theme-toggle');
-    document.getElementById('search-btn').addEventListener('click', () => openCommandPalette());
-    const session = await requireAuth();
+    const $ = (id) => document.getElementById(id);
+    const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+
+    if (typeof renderLangSwitcher === 'function') renderLangSwitcher('lang-switch');
+    if (typeof renderThemeToggle === 'function') renderThemeToggle('theme-toggle');
+    on($('search-btn'), 'click', () => {
+      if (typeof openCommandPalette === 'function') openCommandPalette();
+    });
+
+    let session = null;
+    try { session = await requireAuth(); } catch (e) { console.error('auth', e); }
     if (!session) return;
     const user = session.user;
-    const profile = await omxGetProfile();
-    const displayName = profile?.name || user.email;
+    let profile = null;
+    try { profile = await omxGetProfile(); } catch (e) { console.error('profile', e); }
+    const displayName = (profile && profile.name) || user.email || 'User';
+    const firstChar = (displayName && displayName.length) ? displayName.charAt(0).toUpperCase() : '?';
 
-    document.getElementById('topbar-name').textContent = displayName;
-    document.getElementById('topbar-avatar').textContent = displayName[0].toUpperCase();
-    if (profile?.role === 'admin') document.getElementById('admin-link').style.display = 'block';
+    if ($('topbar-name')) $('topbar-name').textContent = displayName;
+    if ($('topbar-avatar')) $('topbar-avatar').textContent = firstChar;
+    if (profile?.role === 'admin' && $('admin-link')) $('admin-link').style.display = 'block';
 
     const slug = new URLSearchParams(location.search).get('slug') || 'dashboard';
 
