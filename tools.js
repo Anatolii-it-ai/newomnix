@@ -466,6 +466,409 @@ window.OmnixTools = {
     },
   },
 
+  // ========== 3.5 PLANNER ==========
+  planner: {
+    title: 'Планировщик — твой календарь',
+    async render(c) {
+      const uid = await getUid();
+      let view = 'month';                  // 'month' | 'week' | 'day'
+      let viewDate = new Date();           // anchor date for current view
+      let goalsCache = null;
+
+      c.innerHTML = `
+        <div class="cal-toolbar">
+          <div class="cal-nav">
+            <button class="btn btn-sm btn-ghost" id="cal-prev" aria-label="prev">←</button>
+            <div class="cal-month-label" id="cal-label">—</div>
+            <button class="btn btn-sm btn-ghost" id="cal-next" aria-label="next">→</button>
+            <button class="btn btn-sm" id="cal-today">${esc(t('planner.today'))}</button>
+          </div>
+          <span style="flex:1"></span>
+          <div class="cal-view-toggle">
+            <button data-view="month" class="active">${esc(t('planner.view_month'))}</button>
+            <button data-view="week">${esc(t('planner.view_week'))}</button>
+            <button data-view="day">${esc(t('planner.view_day'))}</button>
+          </div>
+          <button class="btn btn-primary btn-sm" id="cal-add">${esc(t('planner.add_task'))}</button>
+        </div>
+        <div id="cal-body"></div>
+        <div class="cal-legend">
+          <span class="muted">${esc(t('planner.legend_title'))}:</span>
+          <span class="cal-legend-chip"><i class="cal-q-dot q1"></i>${esc(t('planner.legend_q1'))}</span>
+          <span class="cal-legend-chip"><i class="cal-q-dot q2"></i>${esc(t('planner.legend_q2'))}</span>
+          <span class="cal-legend-chip"><i class="cal-q-dot q3"></i>${esc(t('planner.legend_q3'))}</span>
+          <span class="cal-legend-chip"><i class="cal-q-dot q4"></i>${esc(t('planner.legend_q4'))}</span>
+        </div>
+      `;
+
+      // ---- Date helpers (locale-aware) ----
+      const toIso = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+      // Monday-based weekday index (0..6, Mon=0)
+      const monDow = (d) => (d.getDay() + 6) % 7;
+      const startOfWeek = (d) => {
+        const x = new Date(d); x.setDate(x.getDate() - monDow(d)); x.setHours(0,0,0,0); return x;
+      };
+      const fmtMonthYear = (d) => d.toLocaleDateString(localeOf(), { month: 'long', year: 'numeric' });
+      const fmtWeekday = (d) => d.toLocaleDateString(localeOf(), { weekday: 'long' });
+      const fmtMonth = (d) => d.toLocaleDateString(localeOf(), { month: 'long' });
+      const fmtDayLabel = (d) => d.toLocaleDateString(localeOf(), { weekday: 'long', day: 'numeric', month: 'long' });
+
+      const weekdayHead = (() => {
+        const base = new Date(2024, 0, 1); // 2024-01-01 is Monday
+        return Array.from({ length: 7 }, (_, i) => {
+          const x = new Date(base); x.setDate(base.getDate() + i);
+          return x.toLocaleDateString(localeOf(), { weekday: 'short' });
+        });
+      })();
+
+      // ---- Data fetch ----
+      async function fetchTasks(fromIso, toIso) {
+        // Tasks с due_date в диапазоне ИЛИ без даты (показываем только если запрошен текущий день/неделя — иначе игнор)
+        const { data } = await sb.from('tasks').select('*')
+          .eq('user_id', uid)
+          .gte('due_date', fromIso).lte('due_date', toIso)
+          .order('due_time', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: true });
+        return data || [];
+      }
+
+      async function getGoals() {
+        if (goalsCache) return goalsCache;
+        const { data } = await sb.from('goals').select('id, title').eq('user_id', uid);
+        goalsCache = data || [];
+        return goalsCache;
+      }
+
+      // ---- Render entry ----
+      async function renderView() {
+        if (view === 'month') return renderMonth();
+        if (view === 'week') return renderWeek();
+        return renderDay();
+      }
+
+      function renderChip(tk) {
+        const time = tk.due_time ? tk.due_time.slice(0, 5) : '';
+        return `<div class="cal-task-chip q${tk.quadrant} ${tk.status === 'done' ? 'done' : ''}" data-task="${tk.id}" title="${esc(tk.title)}">
+          ${time ? `<b>${time}</b> ` : ''}${esc(tk.title)}
+        </div>`;
+      }
+
+      // ---------- MONTH ----------
+      async function renderMonth() {
+        const y = viewDate.getFullYear();
+        const m = viewDate.getMonth();
+        const first = new Date(y, m, 1);
+        const last = new Date(y, m + 1, 0);
+        const startOffset = monDow(first);
+        const cells = [];
+        for (let i = startOffset; i > 0; i--) cells.push({ date: new Date(y, m, 1 - i), other: true });
+        for (let d = 1; d <= last.getDate(); d++) cells.push({ date: new Date(y, m, d), other: false });
+        while (cells.length % 7) {
+          const lastDate = cells[cells.length - 1].date;
+          cells.push({ date: new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate() + 1), other: true });
+        }
+
+        document.getElementById('cal-label').textContent = fmtMonthYear(viewDate);
+
+        const fromIso = toIso(cells[0].date), toIsoStr = toIso(cells[cells.length - 1].date);
+        const tasks = await fetchTasks(fromIso, toIsoStr);
+        const map = new Map();
+        for (const tk of tasks) {
+          if (!map.has(tk.due_date)) map.set(tk.due_date, []);
+          map.get(tk.due_date).push(tk);
+        }
+
+        const today = toIso(new Date());
+        document.getElementById('cal-body').innerHTML = `
+          <div class="cal-grid">
+            ${weekdayHead.map(w => `<div class="cal-head">${esc(w)}</div>`).join('')}
+            ${cells.map(cell => {
+              const ds = toIso(cell.date);
+              const list = map.get(ds) || [];
+              const isToday = ds === today;
+              return `
+                <div class="cal-cell ${cell.other ? 'other-month' : ''} ${isToday ? 'today' : ''}" data-date="${ds}">
+                  <span class="cal-day-num">${cell.date.getDate()}</span>
+                  <div class="cal-tasks">
+                    ${list.slice(0, 3).map(renderChip).join('')}
+                    ${list.length > 3 ? `<div class="cal-more">${esc(t('planner.more_n', { n: list.length - 3 }))}</div>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        wireCellHandlers();
+      }
+
+      // ---------- WEEK ----------
+      async function renderWeek() {
+        const start = startOfWeek(viewDate);
+        const days = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(start); d.setDate(start.getDate() + i); return d;
+        });
+        const fromIso = toIso(days[0]), toIsoStr = toIso(days[6]);
+        const tasks = await fetchTasks(fromIso, toIsoStr);
+        const map = new Map();
+        for (const tk of tasks) {
+          if (!map.has(tk.due_date)) map.set(tk.due_date, []);
+          map.get(tk.due_date).push(tk);
+        }
+
+        const fmt = (d) => d.toLocaleDateString(localeOf(), { day: 'numeric', month: 'short' });
+        document.getElementById('cal-label').textContent = t('planner.week_label', { from: fmt(days[0]), to: fmt(days[6]) });
+
+        const today = toIso(new Date());
+        document.getElementById('cal-body').innerHTML = `
+          <div class="cal-week">
+            ${days.map(d => {
+              const ds = toIso(d);
+              const list = map.get(ds) || [];
+              const isToday = ds === today;
+              return `
+                <div class="cal-week-col ${isToday ? 'today' : ''}" data-date="${ds}">
+                  <div class="cal-week-head">
+                    <span class="muted">${esc(d.toLocaleDateString(localeOf(), { weekday: 'short' }))}</span>
+                    <span class="cal-day-num">${d.getDate()}</span>
+                  </div>
+                  <div class="cal-week-body">
+                    ${list.length ? list.map(renderChip).join('') : `<p class="muted" style="font-size:11px; padding:6px">—</p>`}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        wireCellHandlers();
+      }
+
+      // ---------- DAY ----------
+      async function renderDay() {
+        const ds = toIso(viewDate);
+        const tasks = await fetchTasks(ds, ds);
+        document.getElementById('cal-label').textContent = fmtDayLabel(viewDate);
+
+        const noTime = tasks.filter(tk => !tk.due_time);
+        const timed = tasks.filter(tk => tk.due_time)
+          .sort((a, b) => (a.due_time || '').localeCompare(b.due_time || ''));
+
+        const taskRow = (tk) => {
+          const time = tk.due_time ? tk.due_time.slice(0, 5) : t('planner.no_time');
+          const sphereTag = tk.sphere ? `<span class="tag" style="background:${SPHERE_COLORS[tk.sphere] || '#7C5CFF'}30; color:${SPHERE_COLORS[tk.sphere] || '#7C5CFF'}; font-size:11px">${esc(tSphere(tk.sphere))}</span>` : '';
+          return `
+            <div class="day-task-row ${tk.status === 'done' ? 'done' : ''}" data-task="${tk.id}">
+              <span class="day-task-time">${time}</span>
+              <span class="day-task-color q${tk.quadrant}"></span>
+              <span class="day-task-title">${esc(tk.title)}</span>
+              ${sphereTag}
+              ${tk.estimate_min ? `<span class="day-task-meta">${tk.estimate_min}m</span>` : ''}
+              <input type="checkbox" data-toggle="${tk.id}" ${tk.status === 'done' ? 'checked' : ''}/>
+              <button class="btn btn-sm btn-danger" data-del="${tk.id}" style="padding:2px 8px">×</button>
+            </div>
+          `;
+        };
+
+        document.getElementById('cal-body').innerHTML = `
+          <div class="day-view">
+            ${tasks.length === 0 ? `<p class="muted">${esc(t('planner.no_tasks_day'))}</p>` : `
+              ${noTime.length ? `
+                <h3 style="font-size:13px; margin:6px 0 8px; color:var(--text-dim)">${esc(t('planner.no_time'))}</h3>
+                <div class="day-tasks">${noTime.map(taskRow).join('')}</div>
+              ` : ''}
+              ${timed.length ? `
+                <h3 style="font-size:13px; margin:14px 0 8px; color:var(--text-dim)">${esc(t('planner.task_count', { n: timed.length }))}</h3>
+                <div class="day-tasks">${timed.map(taskRow).join('')}</div>
+              ` : ''}
+            `}
+          </div>
+        `;
+        wireDayHandlers(tasks);
+      }
+
+      // ---------- Handlers ----------
+      function parseIso(ds) {
+        const [y, m, d] = ds.split('-').map(Number);
+        return new Date(y, m - 1, d);
+      }
+
+      function wireCellHandlers() {
+        c.querySelectorAll('.cal-cell, .cal-week-col').forEach(cell => {
+          cell.addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-task]');
+            if (chip) { e.stopPropagation(); openTaskFormById(chip.dataset.task); return; }
+            viewDate = parseIso(cell.dataset.date);
+            view = 'day';
+            c.querySelectorAll('.cal-view-toggle button').forEach(x => x.classList.toggle('active', x.dataset.view === 'day'));
+            renderView();
+          });
+        });
+      }
+
+      function wireDayHandlers(tasks) {
+        c.querySelectorAll('.day-task-row').forEach(row => {
+          row.addEventListener('click', (e) => {
+            if (e.target.closest('[data-toggle]') || e.target.closest('[data-del]')) return;
+            openTaskFormById(row.dataset.task, tasks);
+          });
+        });
+        c.querySelectorAll('[data-toggle]').forEach(el => {
+          el.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const tk = tasks.find(x => x.id == el.dataset.toggle);
+            const newStatus = tk.status === 'done' ? 'open' : 'done';
+            const patch = { status: newStatus, completed_at: newStatus === 'done' ? new Date().toISOString() : null };
+            const { error } = await sb.from('tasks').update(patch).eq('id', tk.id);
+            if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+            renderView();
+          });
+        });
+        c.querySelectorAll('[data-del]').forEach(el => {
+          el.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!confirm(t('common.confirm_delete'))) return;
+            const { error } = await sb.from('tasks').delete().eq('id', el.dataset.del);
+            if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+            toast(t('common.deleted'), 'success');
+            renderView();
+          });
+        });
+      }
+
+      async function openTaskFormById(id, cached) {
+        let task = cached?.find(x => x.id == id);
+        if (!task) {
+          const { data } = await sb.from('tasks').select('*').eq('id', id).maybeSingle();
+          task = data;
+        }
+        if (!task) return;
+        taskForm(task);
+      }
+
+      function taskForm(task) {
+        const isEdit = !!task;
+        const defaultDate = task?.due_date || toIso(viewDate);
+        const goalsP = getGoals();
+
+        goalsP.then(goals => {
+          modalOpen(`
+            <h2>${isEdit ? esc(t('tasks.edit_title')) : esc(t('tasks.new_title'))}</h2>
+            <div class="field">
+              <label>${esc(t('tasks.what'))}</label>
+              <input class="input" id="pf-title" value="${task ? esc(task.title) : ''}" />
+            </div>
+            <div class="grid cols-2" style="gap:14px">
+              <div class="field">
+                <label>${esc(t('tasks.due'))}</label>
+                <input class="input" type="date" id="pf-date" value="${defaultDate}"/>
+              </div>
+              <div class="field">
+                <label>${esc(t('planner.task_time'))} <span class="muted" style="font-size:11px">(${esc(t('planner.task_time_hint'))})</span></label>
+                <input class="input" type="time" id="pf-time" value="${task?.due_time ? task.due_time.slice(0, 5) : ''}"/>
+              </div>
+              <div class="field">
+                <label>${esc(t('tasks.quadrant'))}</label>
+                <select class="input" id="pf-q">
+                  ${[1,2,3,4].map(q => `<option value="${q}" ${(task?.quadrant || 2) == q ? 'selected' : ''}>${esc(tQuadrant(q))}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>${esc(t('tasks.sphere'))}</label>
+                <select class="input" id="pf-sphere">
+                  <option value="">—</option>
+                  ${SPHERES.map(s => `<option value="${s}" ${task?.sphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>${esc(t('tasks.goal'))}</label>
+                <select class="input" id="pf-goal">
+                  <option value="">—</option>
+                  ${goals.map(g => `<option value="${g.id}" ${task?.goal_id == g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>${esc(t('tasks.estimate'))}</label>
+                <input class="input" type="number" id="pf-est" value="${task?.estimate_min || ''}"/>
+              </div>
+            </div>
+            <div class="modal-foot">
+              ${isEdit ? `<button class="btn btn-danger" id="pf-del" style="margin-right:auto">${esc(t('common.delete'))}</button>` : ''}
+              <button class="btn btn-ghost" id="pf-cancel">${esc(t('common.cancel'))}</button>
+              <button class="btn btn-primary" id="pf-save">${esc(t('common.save'))}</button>
+            </div>
+          `);
+
+          document.getElementById('pf-cancel').onclick = modalClose;
+          if (isEdit) {
+            document.getElementById('pf-del').onclick = async () => {
+              if (!confirm(t('common.confirm_delete'))) return;
+              const { error } = await sb.from('tasks').delete().eq('id', task.id);
+              if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+              modalClose(); toast(t('common.deleted'), 'success'); renderView();
+            };
+          }
+          document.getElementById('pf-title').focus();
+
+          document.getElementById('pf-save').onclick = async () => {
+            const goalIdRaw = document.getElementById('pf-goal').value;
+            const timeRaw = document.getElementById('pf-time').value;
+            const body = {
+              user_id: uid,
+              title: document.getElementById('pf-title').value.trim(),
+              quadrant: +document.getElementById('pf-q').value,
+              sphere: document.getElementById('pf-sphere').value || null,
+              goal_id: goalIdRaw ? +goalIdRaw : null,
+              due_date: document.getElementById('pf-date').value || null,
+              due_time: timeRaw ? `${timeRaw}:00` : null,
+              estimate_min: +document.getElementById('pf-est').value || null,
+            };
+            if (!body.title) return toast(t('tasks.required'), 'error');
+            let err;
+            if (isEdit) {
+              const { user_id, ...patch } = body;
+              ({ error: err } = await sb.from('tasks').update(patch).eq('id', task.id));
+            } else {
+              ({ error: err } = await sb.from('tasks').insert(body));
+            }
+            if (err) return toast(t('common.error_with_msg', { msg: err.message }), 'error');
+            modalClose();
+            toast(isEdit ? t('common.saved') : t('common.created'), 'success');
+            renderView();
+          };
+        });
+      }
+
+      // ---------- Wire toolbar ----------
+      document.getElementById('cal-prev').onclick = () => {
+        if (view === 'month') viewDate.setMonth(viewDate.getMonth() - 1);
+        else if (view === 'week') viewDate.setDate(viewDate.getDate() - 7);
+        else viewDate.setDate(viewDate.getDate() - 1);
+        renderView();
+      };
+      document.getElementById('cal-next').onclick = () => {
+        if (view === 'month') viewDate.setMonth(viewDate.getMonth() + 1);
+        else if (view === 'week') viewDate.setDate(viewDate.getDate() + 7);
+        else viewDate.setDate(viewDate.getDate() + 1);
+        renderView();
+      };
+      document.getElementById('cal-today').onclick = () => { viewDate = new Date(); renderView(); };
+      document.getElementById('cal-add').onclick = () => taskForm(null);
+      c.querySelectorAll('.cal-view-toggle button').forEach(b => {
+        b.onclick = () => {
+          view = b.dataset.view;
+          c.querySelectorAll('.cal-view-toggle button').forEach(x => x.classList.toggle('active', x === b));
+          renderView();
+        };
+      });
+
+      renderView();
+    },
+  },
+
   // ========== 4. HABITS ==========
   habits: {
     title: 'Привычки — не разрывай цепь',

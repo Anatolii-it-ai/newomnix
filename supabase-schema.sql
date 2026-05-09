@@ -107,12 +107,17 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   quadrant SMALLINT NOT NULL DEFAULT 2 CHECK (quadrant BETWEEN 1 AND 4),
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
   due_date DATE,
+  due_time TIME,
   estimate_min INTEGER,
   actual_min INTEGER,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_user ON public.tasks(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_tasks_due ON public.tasks(user_id, due_date);
+
+-- Безопасное добавление due_time для существующих установок
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS due_time TIME;
 
 -- ========================
 -- 5. HABITS
@@ -336,6 +341,7 @@ INSERT INTO public.tools (slug, name, description, icon) VALUES
   ('dashboard',    'Дашборд',       'Пульс жизни: колесо баланса и приоритеты дня', '◎'),
   ('goals',        'Цели',          'Карта жизни: цели → проекты → задачи → шаги', '◇'),
   ('tasks',        'Задачи',        'Умный планировщик с матрицей Эйзенхауэра', '▦'),
+  ('planner',      'Планировщик',   'Календарь задач с цветами по срочности и временем', '📅'),
   ('habits',       'Привычки',      'Цепочки дней и трекер ежедневных практик', '∞'),
   ('finances',     'Финансы',       'Бюджет, траты и подушка безопасности', '$'),
   ('health',       'Здоровье',      'Сон, вода, шаги, настроение, паттерны', '♡'),
@@ -344,6 +350,14 @@ INSERT INTO public.tools (slug, name, description, icon) VALUES
   ('ai',           'AI-ассистент',  'Проактивные напоминания и инсайты', '✦'),
   ('gamification', 'Геймификация',  'Очки, уровни, личный аватар', '★')
 ON CONFLICT (slug) DO NOTHING;
+
+-- Раздать planner всем существующим пользователям (новые получат через trigger)
+INSERT INTO public.user_tools (user_id, tool_id)
+SELECT p.id, t.id
+FROM public.profiles p
+CROSS JOIN public.tools t
+WHERE t.slug = 'planner'
+ON CONFLICT DO NOTHING;
 
 -- =====================================================================
 -- ADMIN RPC: список пользователей (с email из auth.users), статистика, удаление
