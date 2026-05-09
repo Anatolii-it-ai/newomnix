@@ -42,7 +42,7 @@ async function loadWheel() {
   const uid = await getUid();
   const { data } = await sb.from('wheel_scores').select('sphere, score').eq('user_id', uid);
   const map = Object.fromEntries((data || []).map(r => [r.sphere, r.score]));
-  const items = SPHERES.map(s => ({ sphere: s, score: map[s] ?? 5 }));
+  const items = SPHERES.map(s => ({ sphere: s, score: map[s] ?? 50 }));
   const avg = items.reduce((a, b) => a + b.score, 0) / items.length;
   return { items, avg: +avg.toFixed(1) };
 }
@@ -120,7 +120,7 @@ window.OmnixTools = {
           <div class="card stat">
             <div class="label">Средний балл жизни</div>
             <div class="value" style="background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent">${wheelRes.avg}</div>
-            <div class="delta">из 10</div>
+            <div class="delta">из 100</div>
           </div>
           <div class="card stat">
             <div class="label">Уровень</div>
@@ -1149,10 +1149,10 @@ async function computeInsights() {
   // 5. Wheel imbalance
   const { data: weakest } = await sb.from('wheel_scores')
     .select('sphere, score').eq('user_id', uid).order('score').limit(1);
-  if (weakest?.[0] && weakest[0].score <= 4) {
+  if (weakest?.[0] && weakest[0].score <= 40) {
     insights.push({
       kind: 'wheel_weak',
-      text: `Слабая сфера — «${weakest[0].sphere}» (${weakest[0].score}/10). Поставь хотя бы одну цель здесь.`,
+      text: `Слабая сфера — «${weakest[0].sphere}» (${weakest[0].score}/100). Поставь хотя бы одну цель здесь.`,
       priority: 2,
     });
   }
@@ -1201,7 +1201,7 @@ async function renderWheelSVG(items) {
     ${items.map((s, i) => {
       const a0 = -Math.PI / 2 + i * sectorAngle;
       const a1 = a0 + sectorAngle;
-      const r = (s.score / 10) * maxR;
+      const r = (s.score / 100) * maxR;
       const x1 = Math.cos(a0) * r, y1 = Math.sin(a0) * r;
       const x2 = Math.cos(a1) * r, y2 = Math.sin(a1) * r;
       const large = sectorAngle > Math.PI ? 1 : 0;
@@ -1221,12 +1221,12 @@ async function renderWheelSVG(items) {
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px">
       <span style="width:8px; height:8px; border-radius:50%; background:${SPHERE_COLORS[s.sphere]}"></span>
       <span style="flex:1">${s.sphere}</span>
-      <input type="number" min="1" max="10" value="${s.score}" data-s="${s.sphere}" style="width:54px; padding:4px 8px; background:rgba(0,0,0,0.3); border:1px solid var(--border); color:var(--text); border-radius:6px; font:inherit"/>
+      <input type="number" min="0" max="100" value="${s.score}" data-s="${s.sphere}" style="width:64px; padding:4px 8px; background:rgba(0,0,0,0.3); border:1px solid var(--border); color:var(--text); border-radius:6px; font:inherit"/>
     </div>
   `).join('');
 
   ctrl.querySelectorAll('input').forEach(inp => inp.onchange = async () => {
-    const score = Math.max(1, Math.min(10, +inp.value));
+    const score = Math.max(0, Math.min(100, +inp.value));
     inp.value = score;
     const uid = await getUid();
     await sb.from('wheel_scores').upsert(

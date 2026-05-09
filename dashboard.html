@@ -6,7 +6,7 @@
   <title>Личный кабинет — OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=5" />
+  <link rel="stylesheet" href="app.css?v=6" />
 </head>
 <body>
   <div class="shell">
@@ -328,9 +328,9 @@
       if (todaysTasks.length) summaryParts.push(`${todaysTasks.length} задач в работе.`);
       document.getElementById('ov-today-summary').innerHTML = summaryParts.join(' ');
 
-      // Wheel render — SVG with clickable spheres
+      // Wheel render — SVG with editable scores + clickable spheres
       const wheelMap = Object.fromEntries(wheel.map(w => [w.sphere, w.score]));
-      const wheelItems = SPHERES.map(s => ({ sphere: s, score: wheelMap[s] ?? 5 }));
+      const wheelItems = SPHERES.map(s => ({ sphere: s, score: wheelMap[s] ?? 50 }));
       renderWheelSVG(wheelItems, openSphereTasks);
 
       // Today list — habits first (max 4), then tasks (max 3)
@@ -426,14 +426,14 @@
       const sectorsSvg = items.map((s, i) => {
         const a0 = -Math.PI / 2 + i * sectorAngle;
         const a1 = a0 + sectorAngle;
-        const r = (s.score / 10) * maxR;
+        const r = (s.score / 100) * maxR;
         const x1 = Math.cos(a0) * r, y1 = Math.sin(a0) * r;
         const x2 = Math.cos(a1) * r, y2 = Math.sin(a1) * r;
         const large = sectorAngle > Math.PI ? 1 : 0;
         const color = SPHERE_COLORS[s.sphere] || '#7C5CFF';
         return `<path d="M0 0 L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z"
           fill="${color}" fill-opacity="0.55" stroke="${color}"
-          data-sphere="${esc(s.sphere)}" style="cursor:pointer"><title>${esc(s.sphere)} — ${s.score}/10</title></path>`;
+          data-sphere="${esc(s.sphere)}" style="cursor:pointer"><title>${esc(s.sphere)} — ${s.score}%</title></path>`;
       }).join('');
 
       const labelsSvg = items.map((s, i) => {
@@ -457,19 +457,41 @@
       </svg>`;
 
       ctrl.innerHTML = items.map(s => `
-        <div class="wheel-row" data-sphere="${esc(s.sphere)}" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; font-size:13px; transition:background .15s">
-          <span style="width:8px; height:8px; border-radius:50%; background:${SPHERE_COLORS[s.sphere]}"></span>
-          <span style="flex:1">${esc(s.sphere)}</span>
-          <span style="font-weight:700; min-width:24px; text-align:right">${s.score}</span>
+        <div class="wheel-row" data-sphere="${esc(s.sphere)}" style="display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; font-size:13px; transition:background .15s">
+          <span style="width:8px; height:8px; border-radius:50%; background:${SPHERE_COLORS[s.sphere]}; flex-shrink:0"></span>
+          <span class="wheel-row-name" style="flex:1; cursor:pointer">${esc(s.sphere)}</span>
+          <input type="number" min="0" max="100" step="1" value="${s.score}" data-score="${esc(s.sphere)}"
+            style="width:64px; padding:4px 8px; background:rgba(0,0,0,0.3); border:1px solid var(--border); color:var(--text); border-radius:6px; font:inherit; text-align:center"
+            title="Введи балл от 0 до 100"/>
         </div>
       `).join('');
 
-      const handle = (el) => el.addEventListener('click', () => onSphereClick(el.dataset.sphere));
-      wrap.querySelectorAll('[data-sphere]').forEach(handle);
-      ctrl.querySelectorAll('[data-sphere]').forEach((el) => {
-        handle(el);
-        el.addEventListener('mouseenter', () => el.style.background = 'rgba(255,255,255,0.05)');
-        el.addEventListener('mouseleave', () => el.style.background = '');
+      // Клик по сектору SVG, по подписи SVG, по названию сферы — показывает задачи сферы
+      wrap.querySelectorAll('[data-sphere]').forEach(el => {
+        el.addEventListener('click', () => onSphereClick(el.dataset.sphere));
+      });
+      ctrl.querySelectorAll('.wheel-row-name').forEach(el => {
+        const row = el.closest('.wheel-row');
+        el.addEventListener('click', () => onSphereClick(row.dataset.sphere));
+        row.addEventListener('mouseenter', () => row.style.background = 'rgba(255,255,255,0.05)');
+        row.addEventListener('mouseleave', () => row.style.background = '');
+      });
+
+      // Сохранение нового балла
+      ctrl.querySelectorAll('input[data-score]').forEach(inp => {
+        inp.addEventListener('change', async () => {
+          const sphere = inp.dataset.score;
+          const score = Math.max(0, Math.min(100, Math.round(+inp.value || 0)));
+          inp.value = score;
+          const { error } = await sb.from('wheel_scores').upsert(
+            { user_id: user.id, sphere, score, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id,sphere' }
+          );
+          if (error) return toast('Не удалось сохранить: ' + error.message, 'error');
+          // Перерисовываем колесо с новыми значениями
+          const updated = items.map(it => it.sphere === sphere ? { ...it, score } : it);
+          renderWheelSVG(updated, onSphereClick);
+        });
       });
     }
 

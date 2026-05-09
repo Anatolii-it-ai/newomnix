@@ -53,10 +53,34 @@ CREATE TABLE IF NOT EXISTS public.user_tools (
 CREATE TABLE IF NOT EXISTS public.wheel_scores (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   sphere TEXT NOT NULL,
-  score SMALLINT NOT NULL DEFAULT 5 CHECK (score BETWEEN 1 AND 10),
+  score SMALLINT NOT NULL DEFAULT 50 CHECK (score BETWEEN 0 AND 100),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, sphere)
 );
+
+-- Миграция со старой шкалы 1–10 на 0–100 (безопасна для повторного запуска).
+DO $$
+BEGIN
+  -- Снять старый CHECK, если он есть
+  IF EXISTS (
+    SELECT 1 FROM information_schema.constraint_column_usage
+    WHERE table_name = 'wheel_scores' AND constraint_name = 'wheel_scores_score_check'
+  ) THEN
+    ALTER TABLE public.wheel_scores DROP CONSTRAINT wheel_scores_score_check;
+  END IF;
+
+  -- Если ещё не мигрировали — умножим старые значения 1–10 на 10
+  IF EXISTS (SELECT 1 FROM public.wheel_scores WHERE score BETWEEN 1 AND 10) THEN
+    UPDATE public.wheel_scores SET score = score * 10 WHERE score BETWEEN 1 AND 10;
+  END IF;
+
+  -- Дефолт 50, новый CHECK 0..100
+  ALTER TABLE public.wheel_scores ALTER COLUMN score SET DEFAULT 50;
+  ALTER TABLE public.wheel_scores ADD CONSTRAINT wheel_scores_score_check CHECK (score BETWEEN 0 AND 100);
+EXCEPTION WHEN duplicate_object THEN
+  -- CHECK уже стоит — пропускаем
+  NULL;
+END $$;
 
 -- ========================
 -- 4. GOALS / TASKS
@@ -280,10 +304,10 @@ BEGIN
     SELECT NEW.id, t.id FROM public.tools t WHERE t.enabled
   ON CONFLICT DO NOTHING;
 
-  -- Wheel of balance (5 baseline)
+  -- Wheel of balance (50 baseline, шкала 0–100)
   FOREACH sphere IN ARRAY spheres LOOP
     INSERT INTO public.wheel_scores (user_id, sphere, score)
-    VALUES (NEW.id, sphere, 5)
+    VALUES (NEW.id, sphere, 50)
     ON CONFLICT DO NOTHING;
   END LOOP;
 
