@@ -1,5 +1,6 @@
-// =================== OmnixOS · Tools (10 modules) ===================
-// Each tool: { title, render(container) }. Uses helpers from auth.js.
+// =================== OmnixOS · Tools (Supabase-powered) ===================
+// 10 модулей. Все операции напрямую через supabase-js (window.sb).
+// Требует: supabase.js + auth.js загруженные ранее.
 
 const SPHERES = ['Здоровье', 'Работа', 'Деньги', 'Отношения', 'Развитие', 'Отдых', 'Творчество', 'Дух'];
 const SPHERE_COLORS = {
@@ -16,6 +17,16 @@ const QUADRANTS = {
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const ruDate = (s) => s ? new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '—';
 const money = (cents) => (cents / 100).toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ₽';
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+
+// User id кешируем — нужен почти везде для insert/update.
+let UID = null;
+async function getUid() {
+  if (UID) return UID;
+  const u = await omxGetUser();
+  UID = u?.id;
+  return UID;
+}
 
 function modalOpen(html) {
   const root = document.getElementById('modal-root');
@@ -26,36 +37,100 @@ function modalOpen(html) {
 }
 function modalClose() { document.getElementById('modal-root').innerHTML = ''; }
 
+// ----- Wheel: load + ensure 8 spheres -----
+async function loadWheel() {
+  const uid = await getUid();
+  const { data } = await sb.from('wheel_scores').select('sphere, score').eq('user_id', uid);
+  const map = Object.fromEntries((data || []).map(r => [r.sphere, r.score]));
+  const items = SPHERES.map(s => ({ sphere: s, score: map[s] ?? 5 }));
+  const avg = items.reduce((a, b) => a + b.score, 0) / items.length;
+  return { items, avg: +avg.toFixed(1) };
+}
+
+// ----- Habits with logs (last 30 дней) and streaks -----
+async function loadHabitsWithLogs() {
+  const uid = await getUid();
+  const { data: habits } = await sb
+    .from('habits').select('*').eq('user_id', uid).eq('archived', false)
+    .order('time_of_day').order('id');
+  const list = habits || [];
+  if (!list.length) return [];
+
+  const ids = list.map(h => h.id);
+  const since = daysAgo(30);
+  const { data: logs } = await sb
+    .from('habit_logs').select('habit_id, date')
+    .in('habit_id', ids).gte('date', since);
+
+  const byHabit = new Map();
+  for (const l of logs || []) {
+    if (!byHabit.has(l.habit_id)) byHabit.set(l.habit_id, new Set());
+    byHabit.get(l.habit_id).add(l.date);
+  }
+
+  const t = todayStr();
+  for (const h of list) {
+    const set = byHabit.get(h.id) || new Set();
+    h.logs = [...set].sort();
+    h.done_today = set.has(t);
+    // streak
+    let streak = 0;
+    const cursor = new Date();
+    while (true) {
+      const ds = cursor.toISOString().slice(0, 10);
+      if (set.has(ds)) { streak++; cursor.setDate(cursor.getDate() - 1); }
+      else break;
+    }
+    h.streak = streak;
+  }
+  return list;
+}
+
+async function toggleHabitLog(habitId, date) {
+  date = date || todayStr();
+  const { data: existing } = await sb
+    .from('habit_logs').select('habit_id').eq('habit_id', habitId).eq('date', date).maybeSingle();
+  if (existing) {
+    await sb.from('habit_logs').delete().eq('habit_id', habitId).eq('date', date);
+    return false;
+  }
+  await sb.from('habit_logs').insert({ habit_id: habitId, date });
+  return true;
+}
+
 window.OmnixTools = {
 
   // ========== 1. DASHBOARD ==========
   dashboard: {
     title: 'Дашборд — пульс жизни',
     async render(c) {
-      const [w, t, g] = await Promise.all([
-        api('GET', '/api/tools/wheel'),
-        api('GET', '/api/tools/today'),
-        api('GET', '/api/tools/gamification'),
+      const uid = await getUid();
+      const [wheelRes, habits, tasksRes, goalsRes] = await Promise.all([
+        loadWheel(),
+        loadHabitsWithLogs(),
+        sb.from('tasks').select('id, title, quadrant, status').eq('user_id', uid).eq('status', 'open').order('quadrant').limit(10),
+        sb.from('goals').select('id, title, progress').eq('user_id', uid).eq('status', 'active').order('progress').limit(3),
       ]);
-      const wheel = w.items, avg = w.avg;
-      const day = t;
+      const tasks = tasksRes.data || [];
+      const goals = goalsRes.data || [];
+      const game = await computeGamification();
 
       c.innerHTML = `
         <div class="grid cols-3" style="margin-bottom:24px">
           <div class="card stat">
             <div class="label">Средний балл жизни</div>
-            <div class="value" style="background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent">${avg}</div>
+            <div class="value" style="background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent">${wheelRes.avg}</div>
             <div class="delta">из 10</div>
           </div>
           <div class="card stat">
             <div class="label">Уровень</div>
-            <div class="value">${g.level}</div>
-            <div class="delta">${g.xp} XP · до следующего ${g.xpToNext}</div>
+            <div class="value">${game.level}</div>
+            <div class="delta">${game.xp} XP · до следующего ${game.xpToNext}</div>
           </div>
           <div class="card stat">
             <div class="label">Лучшая серия</div>
-            <div class="value">${g.bestStreak}<small style="font-size:14px; color:var(--text-mute); margin-left:6px">дн</small></div>
-            <div class="delta">${g.bestHabit ? esc(g.bestHabit) : '—'}</div>
+            <div class="value">${game.bestStreak}<small style="font-size:14px; color:var(--text-mute); margin-left:6px">дн</small></div>
+            <div class="delta">${game.bestHabit ? esc(game.bestHabit) : '—'}</div>
           </div>
         </div>
 
@@ -69,10 +144,10 @@ window.OmnixTools = {
           </div>
           <div class="card">
             <h2>Сегодня</h2>
-            <h3 style="margin-top:16px">Привычки (${day.habits.filter(h => h.done).length}/${day.habits.length})</h3>
+            <h3 style="margin-top:16px">Привычки (${habits.filter(h => h.done_today).length}/${habits.length})</h3>
             <div class="habit-row">
-              ${day.habits.map(h => `
-                <button class="habit-chip ${h.done ? 'done' : ''}" data-h="${h.id}" title="${esc(h.name)}">
+              ${habits.map(h => `
+                <button class="habit-chip ${h.done_today ? 'done' : ''}" data-h="${h.id}" title="${esc(h.name)}">
                   <span>${h.icon || '✓'}</span>
                   <em>${esc(h.name)}</em>
                 </button>
@@ -80,7 +155,7 @@ window.OmnixTools = {
             </div>
             <h3 style="margin-top:18px">Топ задач</h3>
             <ul class="mini-tasks">
-              ${day.tasks.slice(0, 5).map(tk => `
+              ${tasks.slice(0, 5).map(tk => `
                 <li class="${tk.status === 'done' ? 'done' : ''}">
                   <i style="background:${QUADRANTS[tk.quadrant]?.color || '#6E6E80'}"></i>
                   ${esc(tk.title)}
@@ -92,9 +167,9 @@ window.OmnixTools = {
 
         <div class="card" style="margin-top:20px">
           <h2>Активные цели</h2>
-          ${day.goals.length ? `
+          ${goals.length ? `
             <div class="grid cols-3">
-              ${day.goals.map(gl => `
+              ${goals.map(gl => `
                 <div class="goal-mini">
                   <strong>${esc(gl.title)}</strong>
                   <div class="bar"><i style="width:${gl.progress}%"></i></div>
@@ -106,11 +181,11 @@ window.OmnixTools = {
         </div>
       `;
 
-      renderWheelSVG(wheel);
+      renderWheelSVG(wheelRes.items);
 
       c.querySelectorAll('.habit-chip').forEach(b => b.addEventListener('click', async () => {
-        await api('POST', `/api/tools/habits/${b.dataset.h}/toggle`);
-        b.classList.toggle('done');
+        const done = await toggleHabitLog(b.dataset.h);
+        b.classList.toggle('done', done);
       }));
     },
   },
@@ -130,14 +205,33 @@ window.OmnixTools = {
       document.getElementById('goal-add').onclick = () => formGoal();
 
       async function load() {
-        const r = await api('GET', '/api/tools/goals');
-        document.getElementById('goals-count').textContent = `Всего целей: ${r.items.length}`;
+        const uid = await getUid();
+        const [gRes, tRes] = await Promise.all([
+          sb.from('goals').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+          sb.from('tasks').select('goal_id, status').eq('user_id', uid),
+        ]);
+        const goals = gRes.data || [];
+        // Подсчитаем tasks_done/tasks_total для каждой цели на клиенте
+        const counters = new Map();
+        for (const t of tRes.data || []) {
+          if (!t.goal_id) continue;
+          const c = counters.get(t.goal_id) || { done: 0, total: 0 };
+          c.total++;
+          if (t.status === 'done') c.done++;
+          counters.set(t.goal_id, c);
+        }
+        for (const g of goals) {
+          const c = counters.get(g.id) || { done: 0, total: 0 };
+          g.tasks_done = c.done; g.tasks_total = c.total;
+        }
+
+        document.getElementById('goals-count').textContent = `Всего целей: ${goals.length}`;
         const list = document.getElementById('goals-list');
-        if (!r.items.length) {
+        if (!goals.length) {
           list.innerHTML = '<div class="tool-empty" style="grid-column:1/-1">Нет целей. Создай первую — большие цели лучше разбивать на проекты и шаги.</div>';
           return;
         }
-        list.innerHTML = r.items.map(g => {
+        list.innerHTML = goals.map(g => {
           const accent = SPHERE_COLORS[g.sphere] || '#7C5CFF';
           const due = g.target_date ? `до ${ruDate(g.target_date)}` : '';
           return `
@@ -160,10 +254,11 @@ window.OmnixTools = {
             </div>
           `;
         }).join('');
-        list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => formGoal(r.items.find(x => x.id == b.dataset.edit)));
+        list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => formGoal(goals.find(x => x.id == b.dataset.edit)));
         list.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
           if (!confirm('Удалить цель?')) return;
-          await api('DELETE', `/api/tools/goals/${b.dataset.del}`); load();
+          await sb.from('goals').delete().eq('id', b.dataset.del);
+          load();
         });
       }
 
@@ -185,19 +280,25 @@ window.OmnixTools = {
           </div>
         `);
         document.getElementById('gf-save').onclick = async () => {
+          const uid = await getUid();
           const body = {
-            title: document.getElementById('gf-title').value,
+            user_id: uid,
+            title: document.getElementById('gf-title').value.trim(),
             sphere: document.getElementById('gf-sphere').value || null,
-            description: document.getElementById('gf-desc').value,
+            description: document.getElementById('gf-desc').value || null,
             target_date: document.getElementById('gf-date').value || null,
             progress: +document.getElementById('gf-progress').value,
           };
-          if (!body.title.trim()) return toast('Укажи название', 'error');
-          const r = g
-            ? await api('PATCH', `/api/tools/goals/${g.id}`, body)
-            : await api('POST', '/api/tools/goals', body);
-          if (r.ok) { modalClose(); load(); toast('Сохранено', 'success'); }
-          else toast('Ошибка', 'error');
+          if (!body.title) return toast('Укажи название', 'error');
+          let err;
+          if (g) {
+            const { user_id, ...patch } = body;
+            ({ error: err } = await sb.from('goals').update(patch).eq('id', g.id));
+          } else {
+            ({ error: err } = await sb.from('goals').insert(body));
+          }
+          if (err) return toast('Ошибка: ' + err.message, 'error');
+          modalClose(); load(); toast('Сохранено', 'success');
         };
       }
     },
@@ -220,12 +321,14 @@ window.OmnixTools = {
       let goals = [];
 
       const reload = async () => {
-        const [r, gr] = await Promise.all([
-          api('GET', '/api/tools/tasks'),
-          api('GET', '/api/tools/goals'),
+        const uid = await getUid();
+        const [tRes, gRes] = await Promise.all([
+          sb.from('tasks').select('*').eq('user_id', uid).order('status').order('quadrant').order('created_at', { ascending: false }),
+          sb.from('goals').select('id, title').eq('user_id', uid),
         ]);
-        goals = gr.items || [];
-        const items = r.items || [];
+        goals = gRes.data || [];
+        const goalMap = new Map(goals.map(g => [g.id, g.title]));
+        const items = (tRes.data || []).map(t => ({ ...t, goal_title: goalMap.get(t.goal_id) || null }));
         const root = document.getElementById('tasks-view');
 
         if (view === 'matrix') {
@@ -262,28 +365,30 @@ window.OmnixTools = {
           </table></div>`;
         }
 
-        root.querySelectorAll('[data-toggle]').forEach(el => el.onclick = async () => {
-          const id = el.dataset.toggle;
+        async function toggle(id) {
           const item = items.find(x => x.id == id);
-          await api('PATCH', `/api/tools/tasks/${id}`, { status: item.status === 'done' ? 'open' : 'done' });
+          const newStatus = item.status === 'done' ? 'open' : 'done';
+          const patch = { status: newStatus };
+          if (newStatus === 'done') patch.completed_at = new Date().toISOString();
+          else patch.completed_at = null;
+          await sb.from('tasks').update(patch).eq('id', id);
           reload();
+        }
+
+        root.querySelectorAll('[data-toggle]').forEach(el => el.onclick = (e) => {
+          e.stopPropagation();
+          toggle(el.dataset.toggle);
         });
         root.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => taskForm(items.find(x => x.id == b.dataset.edit)));
         root.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
           if (!confirm('Удалить?')) return;
-          await api('DELETE', `/api/tools/tasks/${b.dataset.del}`); reload();
+          await sb.from('tasks').delete().eq('id', b.dataset.del); reload();
         });
         root.querySelectorAll('.matrix-task').forEach(el => {
-          el.onclick = () => taskForm(items.find(x => x.id == el.dataset.id));
-        });
-        root.querySelectorAll('.matrix-task input').forEach(el => {
-          el.onclick = async (e) => {
-            e.stopPropagation();
-            const id = el.dataset.toggle;
-            const item = items.find(x => x.id == id);
-            await api('PATCH', `/api/tools/tasks/${id}`, { status: item.status === 'done' ? 'open' : 'done' });
-            reload();
-          };
+          el.addEventListener('click', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            taskForm(items.find(x => x.id == el.dataset.id));
+          });
         });
       };
 
@@ -322,19 +427,27 @@ window.OmnixTools = {
           </div>
         `);
         document.getElementById('tf-save').onclick = async () => {
+          const uid = await getUid();
+          const goalIdRaw = document.getElementById('tf-goal').value;
           const body = {
-            title: document.getElementById('tf-title').value,
+            user_id: uid,
+            title: document.getElementById('tf-title').value.trim(),
             quadrant: +document.getElementById('tf-q').value,
             sphere: document.getElementById('tf-sphere').value || null,
-            goal_id: document.getElementById('tf-goal').value || null,
+            goal_id: goalIdRaw ? +goalIdRaw : null,
             due_date: document.getElementById('tf-due').value || null,
             estimate_min: +document.getElementById('tf-est').value || null,
           };
-          if (!body.title.trim()) return toast('Укажи название', 'error');
-          const r = t
-            ? await api('PATCH', `/api/tools/tasks/${t.id}`, body)
-            : await api('POST', '/api/tools/tasks', body);
-          if (r.ok) { modalClose(); reload(); toast('Сохранено', 'success'); }
+          if (!body.title) return toast('Укажи название', 'error');
+          let err;
+          if (t) {
+            const { user_id, ...patch } = body;
+            ({ error: err } = await sb.from('tasks').update(patch).eq('id', t.id));
+          } else {
+            ({ error: err } = await sb.from('tasks').insert(body));
+          }
+          if (err) return toast('Ошибка: ' + err.message, 'error');
+          modalClose(); reload(); toast('Сохранено', 'success');
         };
       }
 
@@ -360,16 +473,14 @@ window.OmnixTools = {
         <div id="habits-root"></div>
       `;
       const reload = async () => {
-        const r = await api('GET', '/api/tools/habits');
-        const items = r.items || [];
+        const items = await loadHabitsWithLogs();
         const groups = { morning: [], day: [], evening: [] };
         items.forEach(h => groups[h.time_of_day]?.push(h));
         const labels = { morning: 'Утро', day: 'День', evening: 'Вечер' };
 
         const days = [];
         for (let i = 13; i >= 0; i--) {
-          const d = new Date(); d.setDate(d.getDate() - i);
-          days.push(d.toISOString().slice(0, 10));
+          days.push(daysAgo(i));
         }
 
         document.getElementById('habits-root').innerHTML = items.length ? `
@@ -399,12 +510,12 @@ window.OmnixTools = {
         ` : '<div class="tool-empty">Нет привычек. Заведи первую — она сразу появится в дашборде.</div>';
 
         document.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
-          await api('POST', `/api/tools/habits/${b.dataset.toggle}/toggle`, { date: b.dataset.date });
+          await toggleHabitLog(b.dataset.toggle, b.dataset.date);
           reload();
         });
         document.querySelectorAll('[data-archive]').forEach(b => b.onclick = async () => {
           if (!confirm('Архивировать привычку?')) return;
-          await api('PATCH', `/api/tools/habits/${b.dataset.archive}`, { archived: 1 });
+          await sb.from('habits').update({ archived: true }).eq('id', b.dataset.archive);
           reload();
         });
       };
@@ -423,13 +534,16 @@ window.OmnixTools = {
           </div>
         `);
         document.getElementById('hf-save').onclick = async () => {
-          const r = await api('POST', '/api/tools/habits', {
-            name: document.getElementById('hf-name').value,
+          const uid = await getUid();
+          const name = document.getElementById('hf-name').value.trim();
+          if (!name) return toast('Укажи название', 'error');
+          const { error } = await sb.from('habits').insert({
+            user_id: uid, name,
             icon: document.getElementById('hf-icon').value || '✓',
             time_of_day: document.getElementById('hf-time').value,
           });
-          if (r.ok) { modalClose(); reload(); toast('Создано', 'success'); }
-          else toast('Укажи название', 'error');
+          if (error) return toast('Ошибка: ' + error.message, 'error');
+          modalClose(); reload(); toast('Создано', 'success');
         };
       };
 
@@ -453,21 +567,43 @@ window.OmnixTools = {
       document.getElementById('fin-add').onclick = () => txForm();
 
       async function reload() {
+        const uid = await getUid();
         const month = document.getElementById('fin-month').value;
-        const [r, s] = await Promise.all([
-          api('GET', `/api/tools/transactions?month=${month}`),
-          api('GET', '/api/tools/finances/summary'),
+        const monthStart = month + '-01';
+        // последний день месяца
+        const [y, m] = month.split('-').map(Number);
+        const monthEnd = new Date(y, m, 0).toISOString().slice(0, 10);
+
+        const [txRes, summary] = await Promise.all([
+          sb.from('transactions').select('*').eq('user_id', uid)
+            .gte('date', monthStart).lte('date', monthEnd)
+            .order('date', { ascending: false }).order('id', { ascending: false }),
+          computeFinanceSummary(),
         ]);
-        const balance = (r.totals.income || 0) - (r.totals.expense || 0);
-        const cats = Object.entries(r.byCategory).sort((a, b) => b[1] - a[1]);
-        const totalExp = r.totals.expense || 1;
+        const items = txRes.data || [];
+
+        const totals = items.reduce((acc, t) => {
+          if (t.kind === 'income') acc.income += t.amount;
+          else acc.expense += t.amount;
+          return acc;
+        }, { income: 0, expense: 0 });
+
+        const byCategory = {};
+        for (const t of items) {
+          if (t.kind !== 'expense') continue;
+          const cat = t.category || 'другое';
+          byCategory[cat] = (byCategory[cat] || 0) + t.amount;
+        }
+        const balance = totals.income - totals.expense;
+        const cats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+        const totalExp = totals.expense || 1;
 
         document.getElementById('fin-root').innerHTML = `
           <div class="grid cols-4" style="margin-bottom:24px">
-            <div class="card stat"><div class="label">Доход за месяц</div><div class="value" style="color:var(--green); font-size:24px">${money(r.totals.income)}</div></div>
-            <div class="card stat"><div class="label">Расход за месяц</div><div class="value" style="color:var(--red); font-size:24px">${money(r.totals.expense)}</div></div>
+            <div class="card stat"><div class="label">Доход за месяц</div><div class="value" style="color:var(--green); font-size:24px">${money(totals.income)}</div></div>
+            <div class="card stat"><div class="label">Расход за месяц</div><div class="value" style="color:var(--red); font-size:24px">${money(totals.expense)}</div></div>
             <div class="card stat"><div class="label">Итог</div><div class="value" style="font-size:24px; color:${balance >= 0 ? 'var(--green)' : 'var(--red)'}">${money(balance)}</div></div>
-            <div class="card stat"><div class="label">Подушка (мес)</div><div class="value">${s.cushionMonths}</div></div>
+            <div class="card stat"><div class="label">Подушка (мес)</div><div class="value">${summary.cushionMonths}</div></div>
           </div>
           <div class="grid cols-2">
             <div class="card">
@@ -483,7 +619,7 @@ window.OmnixTools = {
             <div class="card">
               <h2>Транзакции</h2>
               <div class="tx-list">
-                ${r.items.length ? r.items.map(t => `
+                ${items.length ? items.map(t => `
                   <div class="tx-row">
                     <span class="tx-date">${ruDate(t.date)}</span>
                     <span>${esc(t.category || '—')}</span>
@@ -498,7 +634,7 @@ window.OmnixTools = {
         `;
         document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
           if (!confirm('Удалить?')) return;
-          await api('DELETE', `/api/tools/transactions/${b.dataset.del}`); reload();
+          await sb.from('transactions').delete().eq('id', b.dataset.del); reload();
         });
       }
 
@@ -520,15 +656,19 @@ window.OmnixTools = {
           </div>
         `);
         document.getElementById('tx-save').onclick = async () => {
-          const r = await api('POST', '/api/tools/transactions', {
+          const uid = await getUid();
+          const rub = +document.getElementById('tx-amt').value;
+          if (!Number.isFinite(rub) || rub <= 0) return toast('Сумма должна быть > 0', 'error');
+          const { error } = await sb.from('transactions').insert({
+            user_id: uid,
             kind: document.getElementById('tx-kind').value,
-            amount: +document.getElementById('tx-amt').value,
-            category: document.getElementById('tx-cat').value,
-            date: document.getElementById('tx-date').value,
-            note: document.getElementById('tx-note').value,
+            amount: Math.round(rub * 100),
+            category: document.getElementById('tx-cat').value.trim() || null,
+            date: document.getElementById('tx-date').value || todayStr(),
+            note: document.getElementById('tx-note').value || null,
           });
-          if (r.ok) { modalClose(); reload(); toast('Добавлено', 'success'); }
-          else toast('Сумма должна быть > 0', 'error');
+          if (error) return toast('Ошибка: ' + error.message, 'error');
+          modalClose(); reload(); toast('Добавлено', 'success');
         };
       }
 
@@ -540,11 +680,14 @@ window.OmnixTools = {
   health: {
     title: 'Здоровье — тело и энергия',
     async render(c) {
-      const [t, r] = await Promise.all([
-        api('GET', '/api/tools/health/today'),
-        api('GET', '/api/tools/health/range?days=14'),
+      const uid = await getUid();
+      const since14 = daysAgo(13);
+      const [todayRes, rangeRes] = await Promise.all([
+        sb.from('health_logs').select('*').eq('user_id', uid).eq('date', todayStr()).maybeSingle(),
+        sb.from('health_logs').select('*').eq('user_id', uid).gte('date', since14).order('date'),
       ]);
-      const today = t.today || { date: todayStr() };
+      const today = todayRes.data || { date: todayStr() };
+      const items = rangeRes.data || [];
 
       c.innerHTML = `
         <div class="card">
@@ -578,6 +721,8 @@ window.OmnixTools = {
 
       document.getElementById('h-save').onclick = async () => {
         const body = {
+          user_id: uid,
+          date: todayStr(),
           sleep_hours: +document.getElementById('h-sleep').value || null,
           water_glasses: +document.getElementById('h-water').value || null,
           steps: +document.getElementById('h-steps').value || null,
@@ -585,17 +730,13 @@ window.OmnixTools = {
           weight: +document.getElementById('h-weight').value || null,
           blood_pressure: document.getElementById('h-bp').value || null,
         };
-        const res = await api('PUT', `/api/tools/health/${todayStr()}`, body);
-        if (res.ok) toast('Сохранено', 'success');
+        const { error } = await sb.from('health_logs').upsert(body, { onConflict: 'user_id,date' });
+        toast(error ? 'Ошибка: ' + error.message : 'Сохранено', error ? 'error' : 'success');
       };
 
-      // Charts (mini bars)
-      const items = r.items || [];
+      // Charts
       const days14 = [];
-      for (let i = 13; i >= 0; i--) {
-        const d = new Date(); d.setDate(d.getDate() - i);
-        days14.push(d.toISOString().slice(0, 10));
-      }
+      for (let i = 13; i >= 0; i--) days14.push(daysAgo(i));
       const charts = ['sleep_hours', 'water_glasses', 'steps', 'mood'];
       const labels = { sleep_hours: 'Сон, ч', water_glasses: 'Вода', steps: 'Шаги', mood: 'Настроение' };
       const maxes = { sleep_hours: 10, water_glasses: 10, steps: 12000, mood: 5 };
@@ -631,13 +772,15 @@ window.OmnixTools = {
       document.getElementById('r-new').onclick = () => form();
 
       async function reload() {
-        const r = await api('GET', '/api/tools/reviews');
+        const uid = await getUid();
+        const { data } = await sb.from('reviews').select('*').eq('user_id', uid).order('date_to', { ascending: false }).limit(50);
+        const items = data || [];
         const root = document.getElementById('r-root');
-        if (!r.items.length) {
+        if (!items.length) {
           root.innerHTML = '<div class="tool-empty">Обзоров пока нет. Первый — самый важный.</div>';
           return;
         }
-        root.innerHTML = '<div class="grid cols-2">' + r.items.map(rv => `
+        root.innerHTML = '<div class="grid cols-2">' + items.map(rv => `
           <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:start">
               <div>
@@ -654,19 +797,18 @@ window.OmnixTools = {
         `).join('') + '</div>';
         root.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
           if (!confirm('Удалить обзор?')) return;
-          await api('DELETE', `/api/tools/reviews/${b.dataset.del}`); reload();
+          await sb.from('reviews').delete().eq('id', b.dataset.del); reload();
         });
       }
 
       function form() {
-        const wAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
         modalOpen(`
           <h2>Новый обзор</h2>
           <div class="grid cols-2" style="gap:14px">
             <div class="field"><label>Период</label><select class="input" id="rf-p">
               <option value="week">Неделя</option><option value="month">Месяц</option>
             </select></div>
-            <div class="field"><label>От</label><input class="input" type="date" id="rf-from" value="${wAgo}"/></div>
+            <div class="field"><label>От</label><input class="input" type="date" id="rf-from" value="${daysAgo(7)}"/></div>
             <div class="field"><label>До</label><input class="input" type="date" id="rf-to" value="${todayStr()}"/></div>
           </div>
           <div class="field"><label>✓ Что сделано</label><textarea class="input" id="rf-did" rows="3"></textarea></div>
@@ -679,15 +821,18 @@ window.OmnixTools = {
           </div>
         `);
         document.getElementById('rf-save').onclick = async () => {
-          await api('POST', '/api/tools/reviews', {
+          const uid = await getUid();
+          const { error } = await sb.from('reviews').insert({
+            user_id: uid,
             period: document.getElementById('rf-p').value,
             date_from: document.getElementById('rf-from').value,
             date_to: document.getElementById('rf-to').value,
-            did: document.getElementById('rf-did').value,
-            didnt: document.getElementById('rf-didnt').value,
-            why: document.getElementById('rf-why').value,
-            change: document.getElementById('rf-ch').value,
+            did: document.getElementById('rf-did').value || null,
+            didnt: document.getElementById('rf-didnt').value || null,
+            why: document.getElementById('rf-why').value || null,
+            change: document.getElementById('rf-ch').value || null,
           });
+          if (error) return toast('Ошибка: ' + error.message, 'error');
           modalClose(); reload(); toast('Сохранено', 'success');
         };
       }
@@ -719,14 +864,18 @@ window.OmnixTools = {
       document.getElementById('j-new').onclick = () => form();
 
       async function reload() {
-        const r = await api('GET', '/api/tools/journal' + (kind ? `?kind=${kind}` : ''));
+        const uid = await getUid();
+        let q = sb.from('journal').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(100);
+        if (kind) q = q.eq('kind', kind);
+        const { data } = await q;
+        const items = data || [];
         const root = document.getElementById('j-root');
-        if (!r.items.length) {
+        if (!items.length) {
           root.innerHTML = '<div class="tool-empty">Записей нет. Голова — не склад. Разгрузи мысли в систему.</div>';
           return;
         }
         const kindIcon = { note: '📝', gratitude: '🙏', idea: '💡' };
-        root.innerHTML = '<div class="grid cols-2">' + r.items.map(j => `
+        root.innerHTML = '<div class="grid cols-2">' + items.map(j => `
           <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:start">
               <span class="tag tag-user">${kindIcon[j.kind]} ${j.kind}</span>
@@ -739,7 +888,7 @@ window.OmnixTools = {
         `).join('') + '</div>';
         root.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
           if (!confirm('Удалить?')) return;
-          await api('DELETE', `/api/tools/journal/${b.dataset.del}`); reload();
+          await sb.from('journal').delete().eq('id', b.dataset.del); reload();
         });
       }
 
@@ -760,14 +909,18 @@ window.OmnixTools = {
           </div>
         `);
         document.getElementById('jf-save').onclick = async () => {
-          const r = await api('POST', '/api/tools/journal', {
+          const uid = await getUid();
+          const body = document.getElementById('jf-body').value.trim();
+          if (!body) return toast('Текст не может быть пустым', 'error');
+          const { error } = await sb.from('journal').insert({
+            user_id: uid,
             kind: document.getElementById('jf-k').value,
-            title: document.getElementById('jf-title').value,
-            body: document.getElementById('jf-body').value,
-            tags: document.getElementById('jf-tags').value,
+            title: document.getElementById('jf-title').value || null,
+            body: body.slice(0, 5000),
+            tags: document.getElementById('jf-tags').value || null,
           });
-          if (r.ok) { modalClose(); reload(); toast('Записано', 'success'); }
-          else toast('Текст не может быть пустым', 'error');
+          if (error) return toast('Ошибка: ' + error.message, 'error');
+          modalClose(); reload(); toast('Записано', 'success');
         };
       }
 
@@ -775,11 +928,11 @@ window.OmnixTools = {
     },
   },
 
-  // ========== 9. AI ==========
+  // ========== 9. AI ASSISTANT ==========
   ai: {
     title: 'AI-ассистент — твой проактивный слой',
     async render(c) {
-      const r = await api('GET', '/api/tools/ai/insights');
+      const insights = await computeInsights();
       const hour = new Date().getHours();
       const greeting = hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
 
@@ -789,14 +942,14 @@ window.OmnixTools = {
           ${hour < 12 ? `
             <p class="muted">Утренний бриф. Топ задач на день:</p>
             <ol class="ai-brief">
-              ${(r.brief.top || []).map(t => `<li>${esc(t.title)}</li>`).join('') || '<li class="muted">Открытых задач нет.</li>'}
+              ${(insights.brief.top || []).map(t => `<li>${esc(t.title)}</li>`).join('') || '<li class="muted">Открытых задач нет.</li>'}
             </ol>
           ` : ''}
-          ${r.recap ? `
+          ${insights.recap ? `
             <p class="muted">Вечерний рекап:</p>
             <ul class="ai-brief">
-              <li>Закрыто задач сегодня: <b>${r.recap.todayDone}</b></li>
-              <li>Привычек выполнено: <b>${r.recap.habitsDone} / ${r.recap.habitsTotal}</b></li>
+              <li>Закрыто задач сегодня: <b>${insights.recap.todayDone}</b></li>
+              <li>Привычек выполнено: <b>${insights.recap.habitsDone} / ${insights.recap.habitsTotal}</b></li>
             </ul>
           ` : ''}
         </div>
@@ -804,7 +957,7 @@ window.OmnixTools = {
         <h2 style="margin-top:28px">Инсайты системы</h2>
         <p class="muted">Не push-спам, а контекстные подсказки на основе твоих данных.</p>
         <div class="grid cols-2" style="margin-top:14px">
-          ${r.insights.length ? r.insights.map(i => `
+          ${insights.insights.length ? insights.insights.map(i => `
             <div class="card insight" data-priority="${i.priority}">
               <div class="insight-kind">${insightKindLabel(i.kind)}</div>
               <p>${esc(i.text)}</p>
@@ -829,7 +982,7 @@ window.OmnixTools = {
   gamification: {
     title: 'Геймификация — очки и уровни',
     async render(c) {
-      const g = await api('GET', '/api/tools/gamification');
+      const g = await computeGamification();
       c.innerHTML = `
         <div class="card" style="text-align:center; padding:40px">
           <div class="avatar-big">${g.level}</div>
@@ -862,10 +1015,181 @@ window.OmnixTools = {
   },
 };
 
-// =================== Helpers ===================
+// =================== Aggregations ===================
+
+async function computeFinanceSummary() {
+  const uid = await getUid();
+  const since = daysAgo(90);
+  const { data } = await sb.from('transactions').select('amount, kind').eq('user_id', uid).gte('date', since);
+  let income = 0, expense = 0;
+  for (const t of data || []) {
+    if (t.kind === 'income') income += t.amount;
+    else expense += t.amount;
+  }
+  const monthlyExpense = expense / 3;
+  const balance = income - expense;
+  const cushion = monthlyExpense ? +(balance / monthlyExpense).toFixed(1) : 0;
+  return {
+    balance, monthlyExpense,
+    cushionMonths: cushion > 0 ? cushion : 0,
+  };
+}
+
+async function computeGamification() {
+  const uid = await getUid();
+  const habits = await loadHabitsWithLogs();
+  const habitIds = habits.map(h => h.id);
+
+  const [tasksDoneRes, goalsRes, habitLogsRes] = await Promise.all([
+    sb.from('tasks').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'done'),
+    sb.from('goals').select('progress').eq('user_id', uid),
+    habitIds.length
+      ? sb.from('habit_logs').select('habit_id', { count: 'exact', head: true }).in('habit_id', habitIds)
+      : Promise.resolve({ count: 0 }),
+  ]);
+  const tasksDone = tasksDoneRes.count || 0;
+  const goalsAll = goalsRes.data || [];
+  const habitLogsCount = habitLogsRes.count || 0;
+  const goalsDone = goalsAll.filter(g => g.progress === 100).length;
+  const goalProgressSum = goalsAll.reduce((a, g) => a + (g.progress || 0), 0);
+
+  const xp = tasksDone * 10 + habitLogsCount * 5 + goalProgressSum;
+  const level = Math.floor(xp / 200) + 1;
+  const xpInLevel = xp % 200;
+
+  const badges = [];
+  if (goalsDone >= 1) badges.push({ id: 'first-goal', name: 'Первая цель', icon: '🎯' });
+  if (goalsDone >= 5) badges.push({ id: 'goal-master', name: 'Мастер целей', icon: '🏆' });
+
+  let bestStreak = 0, bestHabit = null;
+  for (const h of habits) {
+    if (h.streak > bestStreak) { bestStreak = h.streak; bestHabit = h.name; }
+  }
+  if (bestStreak >= 7) badges.push({ id: 'streak-7', name: '7 дней подряд', icon: '🔥' });
+  if (bestStreak >= 30) badges.push({ id: 'streak-30', name: '30 дней подряд', icon: '⚡' });
+  if (bestStreak >= 100) badges.push({ id: 'streak-100', name: '100 дней подряд', icon: '💎' });
+  if (tasksDone >= 10) badges.push({ id: 'tasks-10', name: '10 задач', icon: '✅' });
+  if (tasksDone >= 100) badges.push({ id: 'tasks-100', name: '100 задач', icon: '🚀' });
+
+  return {
+    xp, level, xpInLevel, xpToNext: 200 - xpInLevel,
+    badges, bestStreak, bestHabit,
+    stats: { tasksDone, goalsDone, habitsCount: habits.length },
+  };
+}
+
+async function computeInsights() {
+  const uid = await getUid();
+  const insights = [];
+
+  // 1. Habits with broken streak (3+ days no log)
+  const habits = await loadHabitsWithLogs();
+  const t = todayStr();
+  for (const h of habits) {
+    const last = h.logs.length ? h.logs[h.logs.length - 1] : null;
+    if (!last) continue;
+    const daysSince = Math.floor((new Date(t).getTime() - new Date(last).getTime()) / 86400000);
+    if (daysSince >= 3) {
+      insights.push({
+        kind: 'habit_streak',
+        text: `Привычка «${h.name}» — ${daysSince} дней без отметки. Восстановить серию сегодня?`,
+        priority: 2,
+      });
+    }
+  }
+
+  // 2. Goals stall (no related task closed in 14 days)
+  const since14 = new Date(Date.now() - 14 * 86400000).toISOString();
+  const [activeGoalsRes, recentDoneRes] = await Promise.all([
+    sb.from('goals').select('id, title').eq('user_id', uid).eq('status', 'active').lt('progress', 100),
+    sb.from('tasks').select('goal_id').eq('user_id', uid).gte('completed_at', since14),
+  ]);
+  const recentlyMovedGoals = new Set((recentDoneRes.data || []).map(r => r.goal_id).filter(Boolean));
+  const stallGoals = (activeGoalsRes.data || []).filter(g => !recentlyMovedGoals.has(g.id)).slice(0, 3);
+  for (const g of stallGoals) {
+    insights.push({
+      kind: 'goal_stall',
+      text: `Цель «${g.title}» не двигалась 14+ дней. Запланировать шаг на завтра?`,
+      priority: 1,
+    });
+  }
+
+  // 3. Sleep below 7 hours for 3+ recent days
+  const { data: recent } = await sb.from('health_logs')
+    .select('date, sleep_hours').eq('user_id', uid).not('sleep_hours', 'is', null)
+    .order('date', { ascending: false }).limit(5);
+  const lowSleep = (recent || []).filter(r => r.sleep_hours < 7).length;
+  if (lowSleep >= 3) {
+    insights.push({
+      kind: 'health_sleep',
+      text: `Сон ниже 7ч в ${lowSleep} из 5 последних дней. Энергия и фокус будут падать.`,
+      priority: 1,
+    });
+  }
+
+  // 4. Budget over-spent
+  const month = t.slice(0, 7);
+  const monthStart = month + '-01';
+  const since90 = daysAgo(90);
+  const [curRes, last90Res] = await Promise.all([
+    sb.from('transactions').select('amount').eq('user_id', uid).eq('kind', 'expense').gte('date', monthStart),
+    sb.from('transactions').select('amount').eq('user_id', uid).eq('kind', 'income').gte('date', since90),
+  ]);
+  const cur = (curRes.data || []).reduce((a, r) => a + r.amount, 0);
+  const last90 = (last90Res.data || []).reduce((a, r) => a + r.amount, 0);
+  const avgIncome = last90 / 3;
+  if (avgIncome > 0 && cur > avgIncome) {
+    insights.push({
+      kind: 'finance_over',
+      text: `Расход за ${month} уже превысил средний доход. Проверь категории.`,
+      priority: 1,
+    });
+  }
+
+  // 5. Wheel imbalance
+  const { data: weakest } = await sb.from('wheel_scores')
+    .select('sphere, score').eq('user_id', uid).order('score').limit(1);
+  if (weakest?.[0] && weakest[0].score <= 4) {
+    insights.push({
+      kind: 'wheel_weak',
+      text: `Слабая сфера — «${weakest[0].sphere}» (${weakest[0].score}/10). Поставь хотя бы одну цель здесь.`,
+      priority: 2,
+    });
+  }
+
+  // 6. Top 3 open tasks (brief)
+  const { data: top } = await sb.from('tasks')
+    .select('id, title, quadrant').eq('user_id', uid).eq('status', 'open')
+    .order('quadrant').order('created_at', { ascending: false }).limit(3);
+
+  // 7. Evening recap
+  let recap = null;
+  if (new Date().getHours() >= 18) {
+    const since12 = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
+    const [todayDoneRes, habitDoneRes] = await Promise.all([
+      sb.from('tasks').select('id', { count: 'exact', head: true })
+        .eq('user_id', uid).gte('completed_at', since12),
+      // habit_logs за сегодня для привычек юзера
+      sb.from('habit_logs').select('habit_id').eq('date', t)
+        .in('habit_id', habits.map(h => h.id).length ? habits.map(h => h.id) : [-1]),
+    ]);
+    recap = {
+      todayDone: todayDoneRes.count || 0,
+      habitsDone: habitDoneRes.data?.length || 0,
+      habitsTotal: habits.length,
+    };
+  }
+
+  insights.sort((a, b) => a.priority - b.priority);
+  return { insights, brief: { top: top || [] }, recap };
+}
+
+// =================== Wheel SVG (на дашборде) ===================
+
 async function renderWheelSVG(items) {
   const wrap = document.getElementById('wheel-svg-wrap');
   const ctrl = document.getElementById('wheel-controls');
+  if (!wrap || !ctrl) return;
   const N = items.length;
   const sectorAngle = (Math.PI * 2) / N;
   const maxR = 100;
@@ -904,9 +1228,12 @@ async function renderWheelSVG(items) {
   ctrl.querySelectorAll('input').forEach(inp => inp.onchange = async () => {
     const score = Math.max(1, Math.min(10, +inp.value));
     inp.value = score;
-    await api('PUT', `/api/tools/wheel/${encodeURIComponent(inp.dataset.s)}`, { score });
-    // re-render the SVG
-    const r = await api('GET', '/api/tools/wheel');
+    const uid = await getUid();
+    await sb.from('wheel_scores').upsert(
+      { user_id: uid, sphere: inp.dataset.s, score, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,sphere' }
+    );
+    const r = await loadWheel();
     renderWheelSVG(r.items);
   });
 }

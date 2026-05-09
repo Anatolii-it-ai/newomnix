@@ -51,6 +51,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=1"></script>
   <script src="auth.js?v=4"></script>
+  <script src="tools.js?v=4"></script>
   <script>
   (async () => {
     const session = await requireAuth();
@@ -87,16 +88,19 @@
       location.href = 'login.html';
     });
 
-    // Tools пока не мигрированы на Supabase — показываем плашку.
-    document.getElementById('page-title').textContent = 'Инструмент: ' + slug;
-    document.getElementById('tool-root').innerHTML = `
-      <div class="card">
-        <h2 style="margin-top:0">Этот модуль ещё не подключён к Supabase</h2>
-        <p class="muted">Авторизация и каталог инструментов уже работают через Supabase, но сами 10 модулей (цели, задачи, привычки, финансы, здоровье и т.д.) переезжают со старого Render-бэкенда в следующей итерации.</p>
-        <p class="muted">До тех пор данные внутри модулей не сохраняются.</p>
-        <a href="dashboard.html" class="btn btn-primary" style="margin-top:14px">← Вернуться в кабинет</a>
-      </div>
-    `;
+    const tool = window.OmnixTools[slug];
+    if (!tool) {
+      document.getElementById('page-title').textContent = 'Инструмент не найден';
+      document.getElementById('tool-root').innerHTML = `<div class="card"><p class="muted">Модуль <code>${slug}</code> ещё не реализован или у тебя нет доступа.</p></div>`;
+      return;
+    }
+    document.getElementById('page-title').textContent = tool.title;
+    try {
+      await tool.render(document.getElementById('tool-root'));
+    } catch (e) {
+      console.error(e);
+      document.getElementById('tool-root').innerHTML = `<div class="card"><p class="muted">Ошибка загрузки инструмента: ${esc(e.message)}</p></div>`;
+    }
   })();
   </script>
 </body>
