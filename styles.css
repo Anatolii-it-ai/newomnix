@@ -211,6 +211,7 @@ img, svg { display: block; max-width: 100%; }
   transform: perspective(1400px) rotateY(-6deg) rotateX(3deg);
   transition: transform .4s ease;
   contain: layout paint;
+  will-change: transform;
 }
 .device:hover { transform: perspective(1400px) rotateY(-3deg) rotateX(1deg) translateY(-4px); }
 .device-bar {
@@ -325,9 +326,8 @@ img, svg { display: block; max-width: 100%; }
   z-index: 1;
   pointer-events: none;
 }
-.orbit-1 { width: 540px; height: 540px; animation: spin 30s linear infinite; }
-.orbit-2 { width: 700px; height: 700px; border-style: dashed; opacity: 0.5; animation: spin 60s linear infinite reverse; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.orbit-1 { width: 540px; height: 540px; }
+.orbit-2 { width: 700px; height: 700px; border-style: dashed; opacity: 0.5; }
 
 /* ===== Sections base ===== */
 .section {
@@ -567,14 +567,7 @@ img, svg { display: block; max-width: 100%; }
   text-align: center;
   position: relative;
   transition: transform .3s ease;
-  animation: chainPulse 4s ease-in-out infinite;
-  animation-delay: var(--d, 0s);
 }
-.chain-node:nth-child(1) { --d: 0s; }
-.chain-node:nth-child(3) { --d: 0.4s; }
-.chain-node:nth-child(5) { --d: 0.8s; }
-.chain-node:nth-child(7) { --d: 1.2s; }
-.chain-node:nth-child(9) { --d: 1.6s; }
 .chain-node.achieved {
   background: var(--grad);
   color: #0B0B14;
@@ -593,10 +586,6 @@ img, svg { display: block; max-width: 100%; }
   border-right: 2px solid var(--cyan);
   border-bottom: 2px solid var(--cyan);
   transform: translateX(-50%) rotate(45deg);
-}
-@keyframes chainPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
 }
 
 /* ===== Principles ===== */

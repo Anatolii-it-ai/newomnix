@@ -101,10 +101,11 @@ const SPHERES = [
   const ctx = c.getContext('2d', { alpha: true });
 
   const isMobile = window.matchMedia('(max-width: 720px)').matches;
-  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // На мобилках и при reduced-motion — рисуем один статичный кадр и выходим.
-  // Это убирает основной источник нагрузки при скролле на слабых устройствах.
+  // Решение: ВСЕГДА рисуем один статичный кадр, без rAF-цикла.
+  // Анимированные частицы на фоне сильно нагружают main-thread при скролле
+  // (даже с паузой), а визуально точки можно оставить статичными — почти
+  // никто не замечает их движения. Это полностью убирает нагрузку.
   let w, h, dpr, particles;
   const COUNT = isMobile ? 24 : 40;
 
@@ -163,80 +164,13 @@ const SPHERES = [
     }
   }
 
-  // Один статичный кадр для случаев, когда анимация не нужна.
-  if (reduceMotion || isMobile) {
-    init();
-    drawFrame();
-    window.addEventListener('resize', () => { init(); drawFrame(); }, { passive: true });
-    return;
-  }
-
-  // Throttle до ~30 fps — для фоновых частиц визуально достаточно,
-  // в 2 раза меньше работы на главном потоке.
-  const FRAME_MS = 33;
-  let last = 0;
-  let rafId = 0;
-  let running = false;
-
-  function loop(t) {
-    if (!running) return;
-    if (t - last >= FRAME_MS) {
-      last = t;
-      drawFrame();
-    }
-    rafId = requestAnimationFrame(loop);
-  }
-
-  function start() {
-    if (running) return;
-    running = true;
-    last = 0;
-    rafId = requestAnimationFrame(loop);
-  }
-  function stop() {
-    running = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = 0;
-  }
-
-  let inView = true;
-  let scrolling = false;
-  let scrollT, resizeT;
-
   init();
-  start();
+  drawFrame();
 
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop();
-    else if (!scrolling && inView) start();
-  });
-
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((entries) => {
-      inView = entries.some(e => e.isIntersecting);
-      if (inView && !scrolling && !document.hidden) start();
-      else stop();
-    });
-    io.observe(c);
-  }
-
-  // Главное: ставим canvas на паузу, пока пользователь активно скроллит.
-  // Иначе main-thread работа canvas-а конкурирует со скроллом → лаги.
-  window.addEventListener('scroll', () => {
-    if (!scrolling) {
-      scrolling = true;
-      stop();
-    }
-    clearTimeout(scrollT);
-    scrollT = setTimeout(() => {
-      scrolling = false;
-      if (inView && !document.hidden) start();
-    }, 180);
-  }, { passive: true });
-
+  let resizeT;
   window.addEventListener('resize', () => {
     clearTimeout(resizeT);
-    resizeT = setTimeout(() => init(), 150);
+    resizeT = setTimeout(() => { init(); drawFrame(); }, 150);
   }, { passive: true });
 })();
 
