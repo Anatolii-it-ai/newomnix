@@ -970,37 +970,49 @@
           if (!s._deleted) s.sort_order = order++;
         }
 
-        const ops = [];
-        // 1. удаление
+        // 1. Удаление — сначала, чтобы освободить (user_id, name) для возможных INSERT-ов с тем же именем
         const toDelete = working.filter(s => s._deleted && !s._new && s.id);
         if (toDelete.length) {
-          ops.push(sb.from('wheel_spheres').delete().in('id', toDelete.map(s => s.id)));
+          const { error } = await sb.from('wheel_spheres').delete().in('id', toDelete.map(s => s.id));
+          if (error) { toast(t('common.error_with_msg', { msg: error.message }), 'error'); return; }
         }
-        // 2. переименования: cascade в tasks.sphere
+
+        // 2. Cascade-переименования в tasks.sphere — до UPDATE сфер, иначе FK-ссылки потеряются
         const renamed = working.filter(s => !s._deleted && !s._new && s.original_name && s.name.trim() !== s.original_name);
         for (const s of renamed) {
-          ops.push(sb.from('tasks').update({ sphere: s.name.trim() })
-            .eq('user_id', user.id).eq('sphere', s.original_name));
+          const { error } = await sb.from('tasks').update({ sphere: s.name.trim() })
+            .eq('user_id', user.id).eq('sphere', s.original_name);
+          if (error) { toast(t('common.error_with_msg', { msg: error.message }), 'error'); return; }
         }
-        // 3. upsert всех видимых
-        const upserts = visible.map(s => ({
-          ...(s.id ? { id: s.id } : {}),
-          user_id: user.id,
-          name: s.name.trim(),
-          color: s.color,
-          sort_order: s.sort_order,
-          score: s.score,
-          updated_at: new Date().toISOString(),
-        }));
-        ops.push(sb.from('wheel_spheres').upsert(upserts, { onConflict: 'user_id,name' }));
 
-        const results = await Promise.all(ops);
-        const err = results.find(r => r && r.error);
-        if (err) { toast(t('common.error_with_msg', { msg: err.error.message }), 'error'); return; }
+        // 3. UPDATE существующих сфер — по id (имя/цвет/порядок/балл)
+        const existing = visible.filter(s => !s._new && s.id);
+        for (const s of existing) {
+          const { error } = await sb.from('wheel_spheres').update({
+            name: s.name.trim(),
+            color: s.color,
+            sort_order: s.sort_order,
+            score: s.score,
+            updated_at: new Date().toISOString(),
+          }).eq('id', s.id);
+          if (error) { toast(t('common.error_with_msg', { msg: error.message }), 'error'); return; }
+        }
+
+        // 4. INSERT новых сфер (без id — BIGSERIAL сам сгенерит)
+        const toInsert = visible.filter(s => s._new);
+        if (toInsert.length) {
+          const { error } = await sb.from('wheel_spheres').insert(toInsert.map(s => ({
+            user_id: user.id,
+            name: s.name.trim(),
+            color: s.color,
+            sort_order: s.sort_order,
+            score: s.score,
+          })));
+          if (error) { toast(t('common.error_with_msg', { msg: error.message }), 'error'); return; }
+        }
 
         toast(t('common.saved'), 'success');
         document.getElementById('modal-root').innerHTML = '';
-        cachedGoals = null; // нет смысла, но не повредит
         await loadOverviewData();
       }
 
