@@ -173,6 +173,14 @@
     const session = await requireAuth();
     if (!session) return;
 
+    // Клик по логотипу — НЕ выходить из кабинета, а переключиться на «Обзор».
+    document.querySelectorAll('.brand').forEach(a => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('overview');
+      });
+    });
+
     const profile = await omxGetProfile();
     const user = session.user;
     const displayName = profile?.name || user.user_metadata?.name || user.email;
