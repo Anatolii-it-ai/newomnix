@@ -151,6 +151,11 @@ CREATE INDEX IF NOT EXISTS idx_tasks_due ON public.tasks(user_id, due_date);
 
 -- Безопасное добавление due_time для существующих установок
 ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS due_time TIME;
+-- Подзадачи (иерархия)
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS parent_id BIGINT REFERENCES public.tasks(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_tasks_parent ON public.tasks(parent_id);
+-- Повторяемость: 'none' | 'daily' | 'weekly' | 'monthly'
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS recurrence TEXT;
 
 -- ========================
 -- 5. HABITS
@@ -410,6 +415,23 @@ ON CONFLICT DO NOTHING;
 -- =====================================================================
 -- ADMIN RPC: список пользователей (с email из auth.users), статистика, удаление
 -- =====================================================================
+-- Самоудаление аккаунта (юзер удаляет себя)
+CREATE OR REPLACE FUNCTION public.delete_self()
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  uid UUID := auth.uid();
+BEGIN
+  IF uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  DELETE FROM auth.users WHERE id = uid;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.delete_self() TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.admin_list_users()
 RETURNS TABLE (
   id UUID, email TEXT, name TEXT, avatar TEXT, role TEXT, status TEXT,

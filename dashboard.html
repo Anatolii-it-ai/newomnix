@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=12" />
+  <link rel="stylesheet" href="app.css?v=13" />
   <style>
     .sphere-label rect {
       transition: fill .15s ease, stroke .15s ease;
@@ -51,6 +51,9 @@
         </button>
         <h1 id="page-title" data-i18n="nav.overview">Обзор</h1>
         <div class="topbar-actions">
+          <button id="search-btn" class="bell" type="button" data-i18n-title="common.search" title="Поиск (Ctrl+K)" aria-label="Search">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          </button>
           <button id="theme-toggle" type="button"></button>
           <select class="lang-switch" id="lang-switch" aria-label="Language"></select>
           <div style="position:relative">
@@ -80,9 +83,9 @@
       <!-- Overview -->
       <section class="tab-panel" data-panel="overview">
         <div class="hero-greeting">
-          <p class="hero-eyebrow" id="ov-greeting">…</p>
-          <h2 class="hero-name" id="ov-username">…</h2>
-          <p class="hero-meta-text" id="ov-today-summary">—</p>
+          <p class="hero-eyebrow skeleton" id="ov-greeting">…</p>
+          <h2 class="hero-name skeleton" id="ov-username" style="width: 240px">…</h2>
+          <p class="hero-meta-text skeleton" id="ov-today-summary" style="width: 80%">—</p>
         </div>
 
         <div class="grid cols-2" style="margin-bottom:24px">
@@ -179,6 +182,12 @@
             </form>
           </div>
         </div>
+
+        <div class="card" style="margin-top:24px; border-color: rgba(239,68,68,0.3)">
+          <h2 style="color: var(--red); margin-top:0" data-i18n="common.danger_zone">Опасная зона</h2>
+          <p class="muted" data-i18n="common.danger_account_warn">Удаление аккаунта необратимо. Все данные (задачи, привычки, дневник, финансы) будут стёрты.</p>
+          <button class="btn btn-danger" id="del-account-btn" data-i18n="common.delete_account">Удалить аккаунт</button>
+        </div>
       </section>
 
       <!-- Subscription -->
@@ -200,12 +209,14 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=1"></script>
-  <script src="i18n.js?v=1"></script>
+  <script src="i18n.js?v=2"></script>
   <script src="auth.js?v=5"></script>
+  <script src="palette.js?v=1"></script>
   <script>
   (async () => {
     renderLangSwitcher('lang-switch');
     renderThemeToggle('theme-toggle');
+    document.getElementById('search-btn').addEventListener('click', () => openCommandPalette());
     const session = await requireAuth();
     if (!session) return;
 
@@ -342,8 +353,10 @@
       // Time-of-day greeting
       const hour = new Date().getHours();
       const greetKey = hour < 6 ? 'greet.night' : hour < 12 ? 'greet.morning' : hour < 18 ? 'greet.day' : 'greet.evening';
-      document.getElementById('ov-greeting').textContent = t(greetKey);
-      document.getElementById('ov-username').textContent = displayName;
+      const gEl = document.getElementById('ov-greeting');
+      const uEl = document.getElementById('ov-username');
+      gEl.textContent = t(greetKey); gEl.classList.remove('skeleton');
+      uEl.textContent = displayName; uEl.classList.remove('skeleton'); uEl.style.width = '';
 
       const today = new Date();
       const todayStr = toDateStr(today);
@@ -371,7 +384,8 @@
       if (habitsLeft > 0) summaryParts.push(t('dashboard.hero_habits_left', { left: habitsLeft, total: habits.length }));
       else if (habits.length) summaryParts.push(t('dashboard.hero_habits_done', { total: habits.length }));
       if (todaysTasks.length) summaryParts.push(t('dashboard.hero_tasks', { count: todaysTasks.length }));
-      document.getElementById('ov-today-summary').innerHTML = summaryParts.join(' ');
+      const sEl = document.getElementById('ov-today-summary');
+      sEl.innerHTML = summaryParts.join(' '); sEl.classList.remove('skeleton'); sEl.style.width = '';
 
       // Wheel render — SVG with editable scores + clickable spheres
       // Если у пользователя ещё нет сфер (миграция не отработала / новый юзер) — рендерим дефолтные 8 как fallback
@@ -461,6 +475,7 @@
             toast(t('common.error_with_msg', { msg: error.message }), 'error');
             return;
           }
+          if (newStatus === 'done') await spawnNextRecurrence(taskId);
           loadOverviewData();
         });
         el.addEventListener('keydown', (e) => {
@@ -629,6 +644,24 @@
       });
     }
 
+    // Создать следующий экземпляр повторяющейся задачи (дублирует логику из tools.js)
+    async function spawnNextRecurrence(taskId) {
+      const { data: task } = await sb.from('tasks').select('*').eq('id', taskId).maybeSingle();
+      if (!task || !task.recurrence || !task.due_date) return;
+      const next = new Date(task.due_date);
+      if (task.recurrence === 'daily') next.setDate(next.getDate() + 1);
+      else if (task.recurrence === 'weekly') next.setDate(next.getDate() + 7);
+      else if (task.recurrence === 'monthly') next.setMonth(next.getMonth() + 1);
+      else return;
+      const nextIso = next.toISOString().slice(0, 10);
+      const { data: existing } = await sb.from('tasks').select('id')
+        .eq('user_id', task.user_id).eq('title', task.title)
+        .eq('due_date', nextIso).eq('recurrence', task.recurrence).limit(1);
+      if (existing && existing.length) return;
+      const { id, status, completed_at, created_at, ...copy } = task;
+      await sb.from('tasks').insert({ ...copy, due_date: nextIso, status: 'open', completed_at: null });
+    }
+
     let cachedGoals = null;
     async function getGoalsForTasks() {
       if (cachedGoals) return cachedGoals;
@@ -715,6 +748,7 @@
           const patch = { status: newStatus, completed_at: newStatus === 'done' ? new Date().toISOString() : null };
           const { error } = await sb.from('tasks').update(patch).eq('id', it.id);
           if (error) { toast(t('common.error_with_msg', { msg: error.message }), 'error'); return; }
+          if (newStatus === 'done') await spawnNextRecurrence(it.id);
           openSphereTasks(sphere);
         });
       });
@@ -829,6 +863,17 @@
       const r = await omxUpdatePassword(fd.get('next'));
       if (r.ok) { toast(t('auth.password_updated'), 'success'); e.target.reset(); }
       else toast(t('common.error_with_msg', { msg: r.error || '' }), 'error');
+    });
+
+    document.getElementById('del-account-btn').addEventListener('click', async () => {
+      if (!confirm(t('common.danger_account_warn'))) return;
+      const phrase = t('common.delete_account_phrase');
+      const typed = prompt(t('common.delete_account_confirm'));
+      if (typed !== phrase) { toast(t('common.cancelled'), 'success'); return; }
+      const { error } = await sb.rpc('delete_self');
+      if (error) { toast(t('common.error_with_msg', { msg: error.message }), 'error'); return; }
+      await omxLogout();
+      location.href = 'login.html';
     });
 
     // ---------- Менеджер сфер: добавлять / удалять / переименовывать / выбирать цвет / переставлять ----------

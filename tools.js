@@ -30,6 +30,26 @@ const QUADRANTS = new Proxy({}, {
   }
 });
 
+// Создать следующий экземпляр повторяющейся задачи при её завершении
+async function spawnNextRecurrence(taskId) {
+  const { data: task } = await sb.from('tasks').select('*').eq('id', taskId).maybeSingle();
+  if (!task || !task.recurrence || !task.due_date) return;
+  const next = new Date(task.due_date);
+  if (task.recurrence === 'daily') next.setDate(next.getDate() + 1);
+  else if (task.recurrence === 'weekly') next.setDate(next.getDate() + 7);
+  else if (task.recurrence === 'monthly') next.setMonth(next.getMonth() + 1);
+  else return;
+  const nextIso = next.toISOString().slice(0, 10);
+  // Не плодим если уже есть копия на этот день с тем же названием и recurrence
+  const { data: existing } = await sb.from('tasks').select('id')
+    .eq('user_id', task.user_id).eq('title', task.title)
+    .eq('due_date', nextIso).eq('recurrence', task.recurrence).limit(1);
+  if (existing && existing.length) return;
+  const { id, status, completed_at, created_at, ...copy } = task;
+  await sb.from('tasks').insert({ ...copy, due_date: nextIso, status: 'open', completed_at: null });
+}
+window.spawnNextRecurrence = spawnNextRecurrence;
+
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const ruDate = (s) => s ? new Date(s).toLocaleDateString(localeOf(), { day: 'numeric', month: 'short' }) : '—';
 const money = (cents) => (cents / 100).toLocaleString(localeOf(), { maximumFractionDigits: 0 }) + ' ₽';
@@ -351,17 +371,31 @@ window.OmnixTools = {
         goals = gRes.data || [];
         const goalMap = new Map(goals.map(g => [g.id, g.title]));
         const items = (tRes.data || []).map(t => ({ ...t, goal_title: goalMap.get(t.goal_id) || null }));
+        window._allTasks = items;
+        // Группировка: дети по parent_id для рендера
+        const byParent = new Map();
+        for (const it of items) {
+          if (it.parent_id) {
+            if (!byParent.has(it.parent_id)) byParent.set(it.parent_id, []);
+            byParent.get(it.parent_id).push(it);
+          }
+        }
+        const rootItems = items.filter(it => !it.parent_id);
         const root = document.getElementById('tasks-view');
 
         if (view === 'matrix') {
           root.innerHTML = `<div class="matrix-grid">
             ${[1, 2, 3, 4].map(q => {
-              const list = items.filter(it => it.quadrant === q);
+              const list = rootItems.filter(it => it.quadrant === q);
+              const renderWithChildren = (it) => {
+                const children = byParent.get(it.id) || [];
+                return taskRow(it) + (children.length ? `<div class="task-subtask-list">${children.map(taskRow).join('')}</div>` : '');
+              };
               return `
                 <div class="matrix-cell" style="--q:${QUADRANT_COLORS[q]}">
                   <h3>${esc(tQuadrant(q))}</h3>
                   <div class="task-list-mini">
-                    ${list.map(taskRow).join('') || `<p class="muted" style="font-size:12px">${esc(t('tasks.empty_q'))}</p>`}
+                    ${list.map(renderWithChildren).join('') || `<p class="muted" style="font-size:12px">${esc(t('tasks.empty_q'))}</p>`}
                   </div>
                 </div>
               `;
@@ -394,6 +428,7 @@ window.OmnixTools = {
           if (newStatus === 'done') patch.completed_at = new Date().toISOString();
           else patch.completed_at = null;
           await sb.from('tasks').update(patch).eq('id', id);
+          if (newStatus === 'done') await spawnNextRecurrence(id);
           reload();
         }
 
@@ -415,16 +450,20 @@ window.OmnixTools = {
       };
 
       function taskRow(it) {
+        const recIcon = it.recurrence ? `<span class="task-recurrence-icon" title="${esc(t('common.recurrence'))}: ${esc(t('common.recurrence_' + it.recurrence))}">↻</span>` : '';
+        const subtaskCls = it.parent_id ? ' subtask' : '';
         return `
-          <div class="matrix-task ${it.status === 'done' ? 'done' : ''}" data-id="${it.id}">
+          <div class="matrix-task${subtaskCls} ${it.status === 'done' ? 'done' : ''}" data-id="${it.id}">
             <input type="checkbox" data-toggle="${it.id}" ${it.status === 'done' ? 'checked' : ''}/>
-            <span>${esc(it.title)}</span>
+            <span>${esc(it.title)}${recIcon}</span>
             ${it.estimate_min ? `<em>${it.estimate_min}m</em>` : ''}
           </div>
         `;
       }
 
       function taskForm(tk) {
+        // Список потенциальных родителей: только задачи без parent_id (топ-уровень) и не сама задача
+        const parentCandidates = (window._allTasks || []).filter(x => !x.parent_id && (!tk || x.id !== tk.id));
         modalOpen(`
           <h2>${tk ? esc(t('tasks.edit_title')) : esc(t('tasks.new_title'))}</h2>
           <div class="field"><label>${esc(t('tasks.what'))}</label><input class="input" id="tf-title" value="${tk ? esc(tk.title) : ''}" /></div>
@@ -440,8 +479,18 @@ window.OmnixTools = {
               <option value="">—</option>
               ${goals.map(g => `<option value="${g.id}" ${tk?.goal_id == g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
             </select></div>
+            <div class="field"><label>${esc(t('common.parent_task'))}</label><select class="input" id="tf-parent">
+              <option value="">${esc(t('common.parent_none'))}</option>
+              ${parentCandidates.map(p => `<option value="${p.id}" ${tk?.parent_id == p.id ? 'selected' : ''}>${esc(p.title)}</option>`).join('')}
+            </select></div>
             <div class="field"><label>${esc(t('tasks.due'))}</label><input class="input" type="date" id="tf-due" value="${tk?.due_date || ''}"/></div>
             <div class="field"><label>${esc(t('tasks.estimate'))}</label><input class="input" type="number" id="tf-est" value="${tk?.estimate_min || ''}"/></div>
+            <div class="field"><label>${esc(t('common.recurrence'))}</label><select class="input" id="tf-rec">
+              <option value="" ${!tk?.recurrence ? 'selected' : ''}>${esc(t('common.recurrence_none'))}</option>
+              <option value="daily" ${tk?.recurrence === 'daily' ? 'selected' : ''}>${esc(t('common.recurrence_daily'))}</option>
+              <option value="weekly" ${tk?.recurrence === 'weekly' ? 'selected' : ''}>${esc(t('common.recurrence_weekly'))}</option>
+              <option value="monthly" ${tk?.recurrence === 'monthly' ? 'selected' : ''}>${esc(t('common.recurrence_monthly'))}</option>
+            </select></div>
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">${esc(t('common.cancel'))}</button>
@@ -451,14 +500,17 @@ window.OmnixTools = {
         document.getElementById('tf-save').onclick = async () => {
           const uid = await getUid();
           const goalIdRaw = document.getElementById('tf-goal').value;
+          const parentIdRaw = document.getElementById('tf-parent').value;
           const body = {
             user_id: uid,
             title: document.getElementById('tf-title').value.trim(),
             quadrant: +document.getElementById('tf-q').value,
             sphere: document.getElementById('tf-sphere').value || null,
             goal_id: goalIdRaw ? +goalIdRaw : null,
+            parent_id: parentIdRaw ? +parentIdRaw : null,
             due_date: document.getElementById('tf-due').value || null,
             estimate_min: +document.getElementById('tf-est').value || null,
+            recurrence: document.getElementById('tf-rec').value || null,
           };
           if (!body.title) return toast(t('tasks.required'), 'error');
           let err;
@@ -514,6 +566,7 @@ window.OmnixTools = {
           <span class="cal-legend-chip"><i class="cal-q-dot q2"></i>${esc(t('planner.legend_q2'))}</span>
           <span class="cal-legend-chip"><i class="cal-q-dot q3"></i>${esc(t('planner.legend_q3'))}</span>
           <span class="cal-legend-chip"><i class="cal-q-dot q4"></i>${esc(t('planner.legend_q4'))}</span>
+          <span class="muted" style="margin-left:auto; font-size:11px">💡 ${esc(t('common.drag_hint'))}</span>
         </div>
       `;
 
@@ -569,7 +622,8 @@ window.OmnixTools = {
 
       function renderChip(tk) {
         const time = tk.due_time ? tk.due_time.slice(0, 5) : '';
-        return `<div class="cal-task-chip q${tk.quadrant} ${tk.status === 'done' ? 'done' : ''}" data-task="${tk.id}" title="${esc(tk.title)}">
+        return `<div class="cal-task-chip q${tk.quadrant} ${tk.status === 'done' ? 'done' : ''}"
+          draggable="true" data-task="${tk.id}" title="${esc(tk.title)}">
           ${time ? `<b>${time}</b> ` : ''}${esc(tk.title)}
         </div>`;
       }
@@ -722,6 +776,32 @@ window.OmnixTools = {
             c.querySelectorAll('.cal-view-toggle button').forEach(x => x.classList.toggle('active', x.dataset.view === 'day'));
             renderView();
           });
+          // Drag-and-drop: ячейка как drop target
+          cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('drop-target'); });
+          cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
+          cell.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            cell.classList.remove('drop-target');
+            const taskId = e.dataTransfer.getData('text/plain');
+            const newDate = cell.dataset.date;
+            if (!taskId || !newDate) return;
+            const { error } = await sb.from('tasks').update({ due_date: newDate }).eq('id', taskId);
+            if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+            toast(t('common.moved'), 'success');
+            renderView();
+          });
+        });
+        // Drag start/end — стилизация перетаскиваемого чипа
+        c.querySelectorAll('.cal-task-chip[draggable="true"]').forEach(chip => {
+          chip.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', chip.dataset.task);
+            e.dataTransfer.effectAllowed = 'move';
+            chip.classList.add('dragging');
+          });
+          chip.addEventListener('dragend', () => {
+            chip.classList.remove('dragging');
+            c.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+          });
         });
       }
 
@@ -740,6 +820,7 @@ window.OmnixTools = {
             const patch = { status: newStatus, completed_at: newStatus === 'done' ? new Date().toISOString() : null };
             const { error } = await sb.from('tasks').update(patch).eq('id', tk.id);
             if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+            if (newStatus === 'done') await spawnNextRecurrence(tk.id);
             renderView();
           });
         });
@@ -810,6 +891,15 @@ window.OmnixTools = {
                 <label>${esc(t('tasks.estimate'))}</label>
                 <input class="input" type="number" id="pf-est" value="${task?.estimate_min || ''}"/>
               </div>
+              <div class="field">
+                <label>${esc(t('common.recurrence'))}</label>
+                <select class="input" id="pf-rec">
+                  <option value="" ${!task?.recurrence ? 'selected' : ''}>${esc(t('common.recurrence_none'))}</option>
+                  <option value="daily" ${task?.recurrence === 'daily' ? 'selected' : ''}>${esc(t('common.recurrence_daily'))}</option>
+                  <option value="weekly" ${task?.recurrence === 'weekly' ? 'selected' : ''}>${esc(t('common.recurrence_weekly'))}</option>
+                  <option value="monthly" ${task?.recurrence === 'monthly' ? 'selected' : ''}>${esc(t('common.recurrence_monthly'))}</option>
+                </select>
+              </div>
             </div>
             <div class="modal-foot">
               ${isEdit ? `<button class="btn btn-danger" id="pf-del" style="margin-right:auto">${esc(t('common.delete'))}</button>` : ''}
@@ -841,6 +931,7 @@ window.OmnixTools = {
               due_date: document.getElementById('pf-date').value || null,
               due_time: timeRaw ? `${timeRaw}:00` : null,
               estimate_min: +document.getElementById('pf-est').value || null,
+              recurrence: document.getElementById('pf-rec').value || null,
             };
             if (!body.title) return toast(t('tasks.required'), 'error');
             let err;
@@ -896,6 +987,20 @@ window.OmnixTools = {
           <button class="btn btn-primary" id="h-add">${esc(t('habits.add_btn'))}</button>
         </div>
         <div id="habits-root"></div>
+        <div class="card" style="margin-top:18px" id="habits-heatmap-card" hidden>
+          <h2>${esc(t('common.heatmap_year'))}</h2>
+          <p class="muted" id="heatmap-total" style="margin-top:-8px"></p>
+          <div class="heatmap-wrap"><div id="heatmap-grid"></div></div>
+          <div class="heatmap-legend">
+            <span>${esc(t('common.heatmap_legend_less'))}</span>
+            <span class="hm-cell"></span>
+            <span class="hm-cell" data-c="1"></span>
+            <span class="hm-cell" data-c="2"></span>
+            <span class="hm-cell" data-c="3"></span>
+            <span class="hm-cell" data-c="4"></span>
+            <span>${esc(t('common.heatmap_legend_more'))}</span>
+          </div>
+        </div>
       `;
       const reload = async () => {
         const items = await loadHabitsWithLogs();
@@ -942,7 +1047,63 @@ window.OmnixTools = {
           await sb.from('habits').update({ archived: true }).eq('id', b.dataset.archive);
           reload();
         });
+
+        // Heatmap всех логов за год
+        await renderHeatmap(items);
       };
+
+      async function renderHeatmap(habits) {
+        const card = document.getElementById('habits-heatmap-card');
+        if (!habits.length) { card.hidden = true; return; }
+        card.hidden = false;
+        const habitIds = habits.map(h => h.id);
+        const since = new Date(); since.setDate(since.getDate() - 364);
+        const sinceIso = since.toISOString().slice(0, 10);
+        const { data: logs } = await sb.from('habit_logs').select('date')
+          .in('habit_id', habitIds).gte('date', sinceIso);
+        const counts = new Map();
+        for (const l of logs || []) counts.set(l.date, (counts.get(l.date) || 0) + 1);
+
+        // align к воскресенью неделей назад: выровняем начало на понедельник
+        const start = new Date(); start.setDate(start.getDate() - 364);
+        while (start.getDay() !== 1) start.setDate(start.getDate() - 1);
+
+        const totalCells = 53 * 7;
+        const cells = [];
+        const maxC = Math.max(1, ...counts.values());
+        for (let i = 0; i < totalCells; i++) {
+          const d = new Date(start); d.setDate(start.getDate() + i);
+          const iso = d.toISOString().slice(0, 10);
+          const c = counts.get(iso) || 0;
+          // 0..maxC → 0..4
+          const lvl = c === 0 ? 0 : Math.min(4, Math.ceil((c / maxC) * 4));
+          // grid-auto-flow: column → элементы заполняются столбец за столбцом
+          cells.push({ iso, c, lvl, dow: d.getDay(), col: Math.floor(i / 7) });
+        }
+
+        // Локализованные подписи Пн/Ср/Пт
+        const sample = new Date(2024, 0, 1); // Mon
+        const dayShort = (offset) => {
+          const d = new Date(sample); d.setDate(sample.getDate() + offset);
+          return d.toLocaleDateString(localeOf(), { weekday: 'short' });
+        };
+        const grid = document.getElementById('heatmap-grid');
+        grid.innerHTML = `
+          <div class="heatmap">
+            <div class="hm-day-labels">
+              <div></div><div>${esc(dayShort(0))}</div><div></div>
+              <div>${esc(dayShort(2))}</div><div></div>
+              <div>${esc(dayShort(4))}</div><div></div>
+            </div>
+            <div class="hm-grid">
+              ${cells.map(x => `<div class="hm-cell" data-c="${x.lvl}" title="${x.iso}: ${x.c}"></div>`).join('')}
+            </div>
+          </div>
+        `;
+        const total = (logs || []).length;
+        document.getElementById('heatmap-total').textContent = t('common.heatmap_total', { n: total });
+      }
+
 
       document.getElementById('h-add').onclick = () => {
         modalOpen(`

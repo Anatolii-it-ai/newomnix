@@ -737,6 +737,174 @@ button { font-family: inherit; cursor: pointer; }
 .badge-icon { font-size: 36px; margin-bottom: 8px; }
 .badge-card strong { font-size: 12px; }
 
+/* ============= Skeleton loaders ============= */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+  border-radius: 6px;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  color: transparent !important;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.sk-line { height: 14px; margin: 6px 0; }
+.sk-line.sm { height: 10px; }
+.sk-line.lg { height: 22px; width: 60%; }
+.sk-block { height: 80px; border-radius: 10px; margin-bottom: 8px; }
+.sk-circle { width: 36px; height: 36px; border-radius: 50%; }
+.sk-card-stack { display: flex; flex-direction: column; gap: 6px; }
+
+/* ============= Year-heatmap (привычки) ============= */
+.heatmap-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0;
+}
+.heatmap {
+  display: inline-grid;
+  grid-template-columns: 24px auto;
+  gap: 6px;
+  align-items: start;
+}
+.hm-month-row {
+  display: grid;
+  grid-template-columns: repeat(53, 12px);
+  gap: 2px;
+  padding-left: 4px;
+  font-size: 9px;
+  color: var(--text-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.hm-grid {
+  display: grid;
+  grid-template-columns: repeat(53, 12px);
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-flow: column;
+  gap: 2px;
+}
+.hm-day-labels {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  gap: 2px;
+  font-size: 9px;
+  color: var(--text-mute);
+  align-items: center;
+  text-align: right;
+}
+.hm-cell {
+  width: 12px; height: 12px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  cursor: default;
+  transition: outline .12s;
+}
+.hm-cell:hover { outline: 1px solid var(--border-strong); }
+.hm-cell[data-c="1"] { background: rgba(124,92,255,0.32); }
+.hm-cell[data-c="2"] { background: rgba(124,92,255,0.55); }
+.hm-cell[data-c="3"] { background: rgba(124,92,255,0.78); }
+.hm-cell[data-c="4"] { background: var(--violet); }
+.heatmap-legend {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 10px; font-size: 11px; color: var(--text-mute);
+}
+.heatmap-legend .hm-cell { width: 11px; height: 11px; }
+
+/* ============= Command palette (Ctrl/Cmd + K) ============= */
+.cp-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(10px);
+  z-index: 200;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding-top: 14vh;
+  animation: fade .15s ease;
+}
+[data-theme="light"] .cp-bg { background: rgba(0,0,0,0.35); }
+.cp-modal {
+  width: min(640px, 92vw);
+  background: rgba(15,15,24,0.97);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  max-height: 70vh;
+}
+[data-theme="light"] .cp-modal { background: #FFFFFF; box-shadow: 0 20px 50px rgba(0,0,0,0.18); }
+.cp-input {
+  border: 0; outline: 0;
+  padding: 18px 22px;
+  font-size: 16px;
+  background: transparent;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  font-family: inherit;
+}
+.cp-input::placeholder { color: var(--text-mute); }
+.cp-results {
+  overflow-y: auto;
+  padding: 8px 6px;
+  display: flex; flex-direction: column;
+  gap: 2px;
+}
+.cp-section {
+  font-size: 10px; color: var(--text-mute);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 8px 14px 4px;
+}
+.cp-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text);
+}
+.cp-item:hover, .cp-item.active {
+  background: var(--surface-2);
+}
+.cp-item .cp-ic { width: 22px; text-align: center; color: var(--text-dim); flex-shrink: 0; }
+.cp-item .cp-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-item .cp-meta { font-size: 11px; color: var(--text-mute); flex-shrink: 0; }
+.cp-foot {
+  border-top: 1px solid var(--border);
+  padding: 8px 14px;
+  font-size: 11px; color: var(--text-mute);
+  display: flex; gap: 14px; flex-wrap: wrap;
+}
+.cp-kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.cp-empty { padding: 28px 14px; text-align: center; color: var(--text-dim); font-size: 13px; }
+
+/* ============= Drag-and-drop visual states ============= */
+.cal-task-chip[draggable="true"] { cursor: grab; }
+.cal-task-chip.dragging { opacity: 0.4; }
+.cal-cell.drop-target { outline: 2px dashed var(--violet); outline-offset: -2px; background: rgba(124,92,255,0.12); }
+
+/* ============= Recurrence + subtasks badges ============= */
+.task-recurrence-icon { font-size: 11px; opacity: 0.7; margin-left: 4px; }
+.task-subtask-list {
+  margin-top: 6px; padding-left: 18px;
+  border-left: 2px solid var(--border);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.matrix-task.subtask { padding-left: 10px; opacity: 0.85; font-size: 12px; }
+
 /* Wheel manager modal rows */
 .wm-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 4px 2px; }
 .wm-row {
