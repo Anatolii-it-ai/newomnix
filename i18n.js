@@ -1249,6 +1249,16 @@ window.applyTranslations = function applyTranslations(root) {
 window.LANGS = LANGS;
 window.LANG_LABELS = LANG_LABELS;
 
+// Клиентский оверрайд иконок инструментов — для единого стиля бара ярлыков.
+// Если в БД icon стоит эмодзи или неподходящий символ — здесь подменяем на минималистичный юникод-глиф.
+const TOOL_ICON_OVERRIDES = {
+  planner: '⊞',
+};
+window.tToolIcon = function tToolIcon(slug, dbIcon) {
+  if (TOOL_ICON_OVERRIDES[slug]) return TOOL_ICON_OVERRIDES[slug];
+  return dbIcon || (slug ? slug[0].toUpperCase() : '∎');
+};
+
 // Translate sphere name (storage key in Russian) to current locale
 window.tSphere = function tSphere(ruName) {
   if (!ruName) return ruName;

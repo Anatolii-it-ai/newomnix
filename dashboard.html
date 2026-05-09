@@ -319,7 +319,7 @@
         const name = tToolName(tool);
         return `
           <a class="tool-shortcut" href="tool.html?slug=${tool.slug}" aria-label="${esc(name)}" title="${esc(name)}">
-            <span>${esc(tool.icon || tool.slug[0].toUpperCase())}</span>
+            <span>${esc(tToolIcon(tool.slug, tool.icon))}</span>
             <span class="ts-tip">${esc(name)}</span>
           </a>
         `;
@@ -496,7 +496,7 @@
       }
       target.innerHTML = tools.map(tool => `
         <div class="tool-card" data-slug="${tool.slug}">
-          <div class="ic">${esc(tool.icon || tool.slug[0].toUpperCase())}</div>
+          <div class="ic">${esc(tToolIcon(tool.slug, tool.icon))}</div>
           <div>
             <h4>${esc(tToolName(tool))}</h4>
             <p>${esc(tToolDesc(tool))}</p>

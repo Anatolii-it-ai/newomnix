@@ -95,7 +95,7 @@
       }
       sideTools.innerHTML = tools.map(tl => `
         <a class="side-link ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}">
-          <span class="ic">${tl.icon || '∎'}</span> ${esc(tToolName(tl))}
+          <span class="ic">${esc(tToolIcon(tl.slug, tl.icon))}</span> ${esc(tToolName(tl))}
         </a>
       `).join('');
     }
@@ -106,7 +106,7 @@
         const name = tToolName(tl);
         return `
           <a class="tool-shortcut ${tl.slug === slug ? 'active' : ''}" href="tool.html?slug=${tl.slug}" aria-label="${esc(name)}" title="${esc(name)}">
-            <span>${esc(tl.icon || tl.slug[0].toUpperCase())}</span>
+            <span>${esc(tToolIcon(tl.slug, tl.icon))}</span>
             <span class="ts-tip">${esc(name)}</span>
           </a>
         `;
