@@ -101,11 +101,6 @@ const SPHERES = [
   const ctx = c.getContext('2d', { alpha: true });
 
   const isMobile = window.matchMedia('(max-width: 720px)').matches;
-
-  // Решение: ВСЕГДА рисуем один статичный кадр, без rAF-цикла.
-  // Анимированные частицы на фоне сильно нагружают main-thread при скролле
-  // (даже с паузой), а визуально точки можно оставить статичными — почти
-  // никто не замечает их движения. Это полностью убирает нагрузку.
   let w, h, dpr, particles;
   const COUNT = isMobile ? 24 : 40;
 
