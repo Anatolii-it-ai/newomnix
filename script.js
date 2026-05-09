@@ -1,16 +1,18 @@
 // ============== OmnixOS · landing scripts ==============
 
 // 1. Wheel of balance ----------------------------------------------------
+const tipFn = (typeof window.t === 'function') ? window.t : (k) => k;
+const tSph = (typeof window.tSphere === 'function') ? window.tSphere : (s) => s;
 const SPHERES = [
-  { name: 'Здоровье',     score: 5, color: '#EF4444', tip: 'Низкий сон 2 недели. Запланировать отбой в 23:00?' },
-  { name: 'Работа',       score: 9, color: '#22D3EE', tip: 'Перевыполнение. Не выгори — добавь 1 день отдыха.' },
-  { name: 'Деньги',       score: 7, color: '#10B981', tip: 'Подушка на 4 месяца. Цель: 6.' },
-  { name: 'Отношения',    score: 8, color: '#EC4899', tip: 'Стабильно. Запланируй вечер на этой неделе.' },
-  { name: 'Развитие',     score: 7, color: '#7C5CFF', tip: 'Курс на 60%. Доделай главу 7 на выходных.' },
-  { name: 'Отдых',        score: 6, color: '#F59E0B', tip: '12 дней без выходного. Поставить субботу?' },
-  { name: 'Творчество',   score: 7, color: '#06B6D4', tip: 'Хороший темп. Покажи проект публично.' },
-  { name: 'Дух',          score: 8, color: '#8B5CF6', tip: 'Медитация — серия 21 день. Так держать.' },
-];
+  { ru: 'Здоровье',   score: 5, color: '#EF4444' },
+  { ru: 'Работа',     score: 9, color: '#22D3EE' },
+  { ru: 'Деньги',     score: 7, color: '#10B981' },
+  { ru: 'Отношения',  score: 8, color: '#EC4899' },
+  { ru: 'Развитие',   score: 7, color: '#7C5CFF' },
+  { ru: 'Отдых',      score: 6, color: '#F59E0B' },
+  { ru: 'Творчество', score: 7, color: '#06B6D4' },
+  { ru: 'Дух',        score: 8, color: '#8B5CF6' },
+].map(s => ({ ...s, name: tSph(s.ru), tip: '' }));
 
 (function renderWheel() {
   const segG = document.getElementById('wheel-segments');
@@ -32,6 +34,7 @@ const SPHERES = [
 
     const startA = -Math.PI / 2 + i * sectorAngle;
     const endA = startA + sectorAngle;
+    // landing wheel uses 1–10 scale (mock data, not from DB)
     const r = (s.score / 10) * maxR;
 
     const x1 = Math.cos(startA) * r;
@@ -84,9 +87,6 @@ const SPHERES = [
   if (weakestEl) weakestEl.textContent = weakest.name.toLowerCase();
 
   function highlightSphere(idx) {
-    const s = SPHERES[idx];
-    const stat = document.querySelector('.wheel-stat p');
-    if (stat) stat.innerHTML = `<b>${s.name}:</b> ${s.tip}`;
     // segment emphasis
     document.querySelectorAll('.wheel .seg').forEach((el, i) => {
       el.setAttribute('fill-opacity', i === idx ? '0.85' : '0.4');

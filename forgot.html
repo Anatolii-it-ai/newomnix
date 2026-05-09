@@ -3,42 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Восстановление пароля — OmnixOS</title>
+  <title data-i18n="auth.forgot_title">Восстановление пароля — OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=3" />
+  <link rel="stylesheet" href="app.css?v=7" />
 </head>
 <body>
   <main class="auth-wrap">
+    <select class="lang-switch" id="lang-switch" aria-label="Language"></select>
     <section class="auth-card">
       <a href="/" class="brand">
         <img src="logo.svg" alt="" />
         <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
       </a>
-      <h1>Восстановление</h1>
-      <p class="auth-sub">Введи email — пришлём ссылку для сброса пароля</p>
+      <h1 data-i18n="auth.forgot_title">Восстановление</h1>
+      <p class="auth-sub" data-i18n="auth.forgot_sub">Введи email — пришлём ссылку для сброса пароля</p>
       <form id="forgot-form">
         <div class="field">
-          <label for="email">Email</label>
+          <label for="email" data-i18n="auth.email">Email</label>
           <input id="email" name="email" type="email" required />
         </div>
-        <button type="submit" class="btn btn-primary">Отправить ссылку</button>
+        <button type="submit" class="btn btn-primary" data-i18n="auth.btn_send_link">Отправить ссылку</button>
       </form>
       <p class="auth-foot">
-        <a href="login.html">← Вернуться ко входу</a>
+        <a href="login.html" data-i18n="auth.back_to_login_full">← Вернуться ко входу</a>
       </p>
     </section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=1"></script>
-  <script src="auth.js?v=4"></script>
+  <script src="i18n.js?v=1"></script>
+  <script src="auth.js?v=5"></script>
   <script>
+    renderLangSwitcher('lang-switch');
     document.getElementById('forgot-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
       await omxResetPassword(fd.get('email'));
-      // Нейтральный ответ — не раскрываем существование email
-      toast('Если такой email существует — ссылка отправлена.', 'success');
+      toast(t('auth.reset_link_sent'), 'success');
     });
   </script>
 </body>

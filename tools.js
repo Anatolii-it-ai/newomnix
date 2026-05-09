@@ -7,16 +7,19 @@ const SPHERE_COLORS = {
   'Здоровье': '#EF4444', 'Работа': '#22D3EE', 'Деньги': '#10B981', 'Отношения': '#EC4899',
   'Развитие': '#7C5CFF', 'Отдых': '#F59E0B', 'Творчество': '#06B6D4', 'Дух': '#8B5CF6',
 };
-const QUADRANTS = {
-  1: { label: 'Срочно · Важно', color: '#EF4444' },
-  2: { label: 'Не срочно · Важно', color: '#10B981' },
-  3: { label: 'Срочно · Не важно', color: '#F59E0B' },
-  4: { label: 'Не срочно · Не важно', color: '#6E6E80' },
+const QUADRANT_COLORS = {
+  1: '#EF4444', 2: '#10B981', 3: '#F59E0B', 4: '#6E6E80',
 };
+// Прокси, чтобы старый код, обращающийся к QUADRANTS[q].label/color, продолжил работать
+const QUADRANTS = new Proxy({}, {
+  get(_, q) {
+    return { label: tQuadrant(q), color: QUADRANT_COLORS[q] };
+  }
+});
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const ruDate = (s) => s ? new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '—';
-const money = (cents) => (cents / 100).toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ₽';
+const ruDate = (s) => s ? new Date(s).toLocaleDateString(localeOf(), { day: 'numeric', month: 'short' }) : '—';
+const money = (cents) => (cents / 100).toLocaleString(localeOf(), { maximumFractionDigits: 0 }) + ' ₽';
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
 // User id кешируем — нужен почти везде для insert/update.
@@ -118,30 +121,30 @@ window.OmnixTools = {
       c.innerHTML = `
         <div class="grid cols-3" style="margin-bottom:24px">
           <div class="card stat">
-            <div class="label">Средний балл жизни</div>
+            <div class="label">${esc(t('dash.avg_score'))}</div>
             <div class="value" style="background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent">${wheelRes.avg}</div>
-            <div class="delta">из 100</div>
+            <div class="delta">${esc(t('dash.of_100'))}</div>
           </div>
           <div class="card stat">
-            <div class="label">Уровень</div>
+            <div class="label">${esc(t('dash.level'))}</div>
             <div class="value">${game.level}</div>
-            <div class="delta">${game.xp} XP · до следующего ${game.xpToNext}</div>
+            <div class="delta">${esc(t('dash.xp_meta', { xp: game.xp, next: game.xpToNext }))}</div>
           </div>
           <div class="card stat">
-            <div class="label">Лучшая серия</div>
-            <div class="value">${game.bestStreak}<small style="font-size:14px; color:var(--text-mute); margin-left:6px">дн</small></div>
+            <div class="label">${esc(t('dash.best_streak'))}</div>
+            <div class="value">${game.bestStreak}<small style="font-size:14px; color:var(--text-mute); margin-left:6px">${esc(t('dash.days_short'))}</small></div>
             <div class="delta">${game.bestHabit ? esc(game.bestHabit) : '—'}</div>
           </div>
         </div>
 
         <div class="grid cols-2">
           <div class="card">
-            <h2>Колесо баланса</h2>
-            <p class="muted" style="margin-top:-10px; margin-bottom:14px">Самооценка по 8 сферам жизни</p>
+            <h2>${esc(t('dashboard.wheel_title'))}</h2>
+            <p class="muted" style="margin-top:-10px; margin-bottom:14px">${esc(t('dash.wheel_self_eval'))}</p>
             <div class="wheel-mini">
               ${wheelRes.items.map(s => `
                 <div class="wheel-mini-row">
-                  <span class="wheel-mini-name">${esc(s.sphere)}</span>
+                  <span class="wheel-mini-name">${esc(tSphere(s.sphere))}</span>
                   <div class="wheel-mini-bar"><div class="wheel-mini-bar-fill" style="width: ${s.score}%"></div></div>
                   <span class="wheel-mini-score">${s.score}</span>
                 </div>
@@ -149,30 +152,30 @@ window.OmnixTools = {
             </div>
           </div>
           <div class="card">
-            <h2>Сегодня</h2>
-            <h3 style="margin-top:16px">Привычки (${habits.filter(h => h.done_today).length}/${habits.length})</h3>
+            <h2>${esc(t('dash.today'))}</h2>
+            <h3 style="margin-top:16px">${esc(t('dash.habits_count', { done: habits.filter(h => h.done_today).length, total: habits.length }))}</h3>
             <div class="habit-row">
               ${habits.map(h => `
                 <button class="habit-chip ${h.done_today ? 'done' : ''}" data-h="${h.id}" title="${esc(h.name)}">
                   <span>${h.icon || '✓'}</span>
                   <em>${esc(h.name)}</em>
                 </button>
-              `).join('') || '<p class="muted">Нет привычек. Заведи в модуле «Привычки».</p>'}
+              `).join('') || `<p class="muted">${esc(t('dash.no_habits'))}</p>`}
             </div>
-            <h3 style="margin-top:18px">Топ задач</h3>
+            <h3 style="margin-top:18px">${esc(t('dash.top_tasks'))}</h3>
             <ul class="mini-tasks">
               ${tasks.slice(0, 5).map(tk => `
                 <li class="${tk.status === 'done' ? 'done' : ''}">
-                  <i style="background:${QUADRANTS[tk.quadrant]?.color || '#6E6E80'}"></i>
+                  <i style="background:${QUADRANT_COLORS[tk.quadrant] || '#6E6E80'}"></i>
                   ${esc(tk.title)}
                 </li>
-              `).join('') || '<li class="muted">Задач нет. Создай в «Задачах».</li>'}
+              `).join('') || `<li class="muted">${esc(t('dash.no_tasks'))}</li>`}
             </ul>
           </div>
         </div>
 
         <div class="card" style="margin-top:20px">
-          <h2>Активные цели</h2>
+          <h2>${esc(t('dash.active_goals'))}</h2>
           ${goals.length ? `
             <div class="grid cols-3">
               ${goals.map(gl => `
@@ -183,7 +186,7 @@ window.OmnixTools = {
                 </div>
               `).join('')}
             </div>
-          ` : '<p class="muted">Целей пока нет. Создай в модуле «Цели».</p>'}
+          ` : `<p class="muted">${esc(t('dash.no_goals'))}</p>`}
         </div>
       `;
 
@@ -201,7 +204,7 @@ window.OmnixTools = {
       c.innerHTML = `
         <div class="toolbar" style="justify-content: space-between">
           <span class="muted" id="goals-count"></span>
-          <button class="btn btn-primary" id="goal-add">+ Новая цель</button>
+          <button class="btn btn-primary" id="goal-add">${esc(t('goals.new_btn'))}</button>
         </div>
         <div id="goals-list" class="grid cols-2"></div>
       `;
@@ -215,44 +218,43 @@ window.OmnixTools = {
           sb.from('tasks').select('goal_id, status').eq('user_id', uid),
         ]);
         const goals = gRes.data || [];
-        // Подсчитаем tasks_done/tasks_total для каждой цели на клиенте
         const counters = new Map();
-        for (const t of tRes.data || []) {
-          if (!t.goal_id) continue;
-          const c = counters.get(t.goal_id) || { done: 0, total: 0 };
-          c.total++;
-          if (t.status === 'done') c.done++;
-          counters.set(t.goal_id, c);
+        for (const tk of tRes.data || []) {
+          if (!tk.goal_id) continue;
+          const cc = counters.get(tk.goal_id) || { done: 0, total: 0 };
+          cc.total++;
+          if (tk.status === 'done') cc.done++;
+          counters.set(tk.goal_id, cc);
         }
         for (const g of goals) {
-          const c = counters.get(g.id) || { done: 0, total: 0 };
-          g.tasks_done = c.done; g.tasks_total = c.total;
+          const cc = counters.get(g.id) || { done: 0, total: 0 };
+          g.tasks_done = cc.done; g.tasks_total = cc.total;
         }
 
-        document.getElementById('goals-count').textContent = `Всего целей: ${goals.length}`;
+        document.getElementById('goals-count').textContent = t('goals.total', { n: goals.length });
         const list = document.getElementById('goals-list');
         if (!goals.length) {
-          list.innerHTML = '<div class="tool-empty" style="grid-column:1/-1">Нет целей. Создай первую — большие цели лучше разбивать на проекты и шаги.</div>';
+          list.innerHTML = `<div class="tool-empty" style="grid-column:1/-1">${esc(t('goals.empty'))}</div>`;
           return;
         }
         list.innerHTML = goals.map(g => {
           const accent = SPHERE_COLORS[g.sphere] || '#7C5CFF';
-          const due = g.target_date ? `до ${ruDate(g.target_date)}` : '';
+          const due = g.target_date ? t('goals.until', { date: ruDate(g.target_date) }) : '';
           return `
             <div class="card goal-card" style="--accent:${accent}">
               <div class="goal-head">
-                <span class="tag" style="background:${accent}30; color:${accent}">${esc(g.sphere || 'без сферы')}</span>
-                <span class="muted" style="font-size:12px">${due}</span>
+                <span class="tag" style="background:${accent}30; color:${accent}">${esc(g.sphere ? tSphere(g.sphere) : t('goals.no_sphere'))}</span>
+                <span class="muted" style="font-size:12px">${esc(due)}</span>
               </div>
               <h3 style="margin:10px 0 4px">${esc(g.title)}</h3>
               ${g.description ? `<p class="muted" style="font-size:13px; margin:0 0 12px">${esc(g.description)}</p>` : ''}
               <div class="bar"><i style="width:${g.progress}%; background:${accent}"></i></div>
               <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px">
-                <span class="muted">${g.tasks_done}/${g.tasks_total} задач</span>
+                <span class="muted">${esc(t('goals.tasks_count', { done: g.tasks_done, total: g.tasks_total }))}</span>
                 <strong>${g.progress}%</strong>
               </div>
               <div style="display:flex; gap:6px; margin-top:14px">
-                <button class="btn btn-sm" data-edit="${g.id}">Изменить</button>
+                <button class="btn btn-sm" data-edit="${g.id}">${esc(t('common.edit'))}</button>
                 <button class="btn btn-sm btn-danger" data-del="${g.id}">×</button>
               </div>
             </div>
@@ -260,7 +262,7 @@ window.OmnixTools = {
         }).join('');
         list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => formGoal(goals.find(x => x.id == b.dataset.edit)));
         list.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-          if (!confirm('Удалить цель?')) return;
+          if (!confirm(t('goals.confirm_delete'))) return;
           await sb.from('goals').delete().eq('id', b.dataset.del);
           load();
         });
@@ -268,19 +270,19 @@ window.OmnixTools = {
 
       function formGoal(g) {
         modalOpen(`
-          <h2>${g ? 'Изменить цель' : 'Новая цель'}</h2>
-          <div class="field"><label>Название</label><input class="input" id="gf-title" value="${g ? esc(g.title) : ''}" /></div>
-          <div class="field"><label>Сфера</label><select class="input" id="gf-sphere">
-            <option value="">— без сферы —</option>
-            ${SPHERES.map(s => `<option ${g?.sphere === s ? 'selected' : ''}>${s}</option>`).join('')}
+          <h2>${g ? esc(t('goals.edit_title')) : esc(t('goals.new_title'))}</h2>
+          <div class="field"><label>${esc(t('goals.title'))}</label><input class="input" id="gf-title" value="${g ? esc(g.title) : ''}" /></div>
+          <div class="field"><label>${esc(t('goals.sphere'))}</label><select class="input" id="gf-sphere">
+            <option value="">${esc(t('goals.no_sphere'))}</option>
+            ${SPHERES.map(s => `<option value="${s}" ${g?.sphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
           </select></div>
-          <div class="field"><label>Описание</label><textarea class="input" id="gf-desc" rows="3">${g ? esc(g.description || '') : ''}</textarea></div>
-          <div class="field"><label>Дедлайн</label><input class="input" id="gf-date" type="date" value="${g?.target_date || ''}" /></div>
-          <div class="field"><label>Прогресс: <span id="gf-pv">${g?.progress || 0}</span>%</label>
+          <div class="field"><label>${esc(t('goals.description'))}</label><textarea class="input" id="gf-desc" rows="3">${g ? esc(g.description || '') : ''}</textarea></div>
+          <div class="field"><label>${esc(t('goals.deadline'))}</label><input class="input" id="gf-date" type="date" value="${g?.target_date || ''}" /></div>
+          <div class="field"><label>${esc(t('goals.progress', { n: '<span id="gf-pv">' + (g?.progress || 0) + '</span>' }))}</label>
             <input id="gf-progress" type="range" min="0" max="100" value="${g?.progress || 0}" oninput="document.getElementById('gf-pv').textContent=this.value" /></div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">Отмена</button>
-            <button class="btn btn-primary" id="gf-save">Сохранить</button>
+            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">${esc(t('common.cancel'))}</button>
+            <button class="btn btn-primary" id="gf-save">${esc(t('common.save'))}</button>
           </div>
         `);
         document.getElementById('gf-save').onclick = async () => {
@@ -293,7 +295,7 @@ window.OmnixTools = {
             target_date: document.getElementById('gf-date').value || null,
             progress: +document.getElementById('gf-progress').value,
           };
-          if (!body.title) return toast('Укажи название', 'error');
+          if (!body.title) return toast(t('tasks.required'), 'error');
           let err;
           if (g) {
             const { user_id, ...patch } = body;
@@ -301,8 +303,8 @@ window.OmnixTools = {
           } else {
             ({ error: err } = await sb.from('goals').insert(body));
           }
-          if (err) return toast('Ошибка: ' + err.message, 'error');
-          modalClose(); load(); toast('Сохранено', 'success');
+          if (err) return toast(t('common.error_with_msg', { msg: err.message }), 'error');
+          modalClose(); load(); toast(t('common.saved'), 'success');
         };
       }
     },
@@ -314,10 +316,10 @@ window.OmnixTools = {
     async render(c) {
       c.innerHTML = `
         <div class="toolbar">
-          <button class="tab-btn active" data-view="matrix">Матрица</button>
-          <button class="tab-btn" data-view="list">Список</button>
+          <button class="tab-btn active" data-view="matrix">${esc(t('tasks.view_matrix'))}</button>
+          <button class="tab-btn" data-view="list">${esc(t('tasks.view_list'))}</button>
           <span style="flex:1"></span>
-          <button class="btn btn-primary" id="task-add">+ Задача</button>
+          <button class="btn btn-primary" id="task-add">${esc(t('tasks.add_btn'))}</button>
         </div>
         <div id="tasks-view"></div>
       `;
@@ -338,12 +340,12 @@ window.OmnixTools = {
         if (view === 'matrix') {
           root.innerHTML = `<div class="matrix-grid">
             ${[1, 2, 3, 4].map(q => {
-              const list = items.filter(t => t.quadrant === q);
+              const list = items.filter(it => it.quadrant === q);
               return `
-                <div class="matrix-cell" style="--q:${QUADRANTS[q].color}">
-                  <h3>${QUADRANTS[q].label}</h3>
+                <div class="matrix-cell" style="--q:${QUADRANT_COLORS[q]}">
+                  <h3>${esc(tQuadrant(q))}</h3>
                   <div class="task-list-mini">
-                    ${list.map(taskRow).join('') || '<p class="muted" style="font-size:12px">пусто</p>'}
+                    ${list.map(taskRow).join('') || `<p class="muted" style="font-size:12px">${esc(t('tasks.empty_q'))}</p>`}
                   </div>
                 </div>
               `;
@@ -351,21 +353,21 @@ window.OmnixTools = {
           </div>`;
         } else {
           root.innerHTML = `<div class="card"><table class="table">
-            <thead><tr><th></th><th>Задача</th><th>Сфера</th><th>Цель</th><th>Срок</th><th>Оценка</th><th></th></tr></thead>
-            <tbody>${items.map(t => `
-              <tr class="${t.status === 'done' ? 'task-done' : ''}">
-                <td><input type="checkbox" ${t.status === 'done' ? 'checked' : ''} data-toggle="${t.id}"/></td>
-                <td>${esc(t.title)}</td>
-                <td>${t.sphere ? `<span class="tag" style="background:${SPHERE_COLORS[t.sphere]}30; color:${SPHERE_COLORS[t.sphere]}">${esc(t.sphere)}</span>` : '—'}</td>
-                <td class="muted">${esc(t.goal_title || '—')}</td>
-                <td class="muted">${ruDate(t.due_date)}</td>
-                <td class="muted">${t.estimate_min ? t.estimate_min + 'м' : '—'}</td>
+            <thead><tr><th></th><th>${esc(t('tasks.th_task'))}</th><th>${esc(t('tasks.th_sphere'))}</th><th>${esc(t('tasks.th_goal'))}</th><th>${esc(t('tasks.th_due'))}</th><th>${esc(t('tasks.th_estimate'))}</th><th></th></tr></thead>
+            <tbody>${items.map(it => `
+              <tr class="${it.status === 'done' ? 'task-done' : ''}">
+                <td><input type="checkbox" ${it.status === 'done' ? 'checked' : ''} data-toggle="${it.id}"/></td>
+                <td>${esc(it.title)}</td>
+                <td>${it.sphere ? `<span class="tag" style="background:${SPHERE_COLORS[it.sphere]}30; color:${SPHERE_COLORS[it.sphere]}">${esc(tSphere(it.sphere))}</span>` : '—'}</td>
+                <td class="muted">${esc(it.goal_title || '—')}</td>
+                <td class="muted">${ruDate(it.due_date)}</td>
+                <td class="muted">${it.estimate_min ? it.estimate_min + 'm' : '—'}</td>
                 <td class="row-actions">
-                  <button class="btn btn-sm" data-edit="${t.id}">⋯</button>
-                  <button class="btn btn-sm btn-danger" data-del="${t.id}">×</button>
+                  <button class="btn btn-sm" data-edit="${it.id}">⋯</button>
+                  <button class="btn btn-sm btn-danger" data-del="${it.id}">×</button>
                 </td>
               </tr>
-            `).join('') || '<tr><td colspan="7" class="muted">Задач пока нет.</td></tr>'}</tbody>
+            `).join('') || `<tr><td colspan="7" class="muted">${esc(t('tasks.empty_row'))}</td></tr>`}</tbody>
           </table></div>`;
         }
 
@@ -385,7 +387,7 @@ window.OmnixTools = {
         });
         root.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => taskForm(items.find(x => x.id == b.dataset.edit)));
         root.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-          if (!confirm('Удалить?')) return;
+          if (!confirm(t('tasks.confirm_delete'))) return;
           await sb.from('tasks').delete().eq('id', b.dataset.del); reload();
         });
         root.querySelectorAll('.matrix-task').forEach(el => {
@@ -396,38 +398,38 @@ window.OmnixTools = {
         });
       };
 
-      function taskRow(t) {
+      function taskRow(it) {
         return `
-          <div class="matrix-task ${t.status === 'done' ? 'done' : ''}" data-id="${t.id}">
-            <input type="checkbox" data-toggle="${t.id}" ${t.status === 'done' ? 'checked' : ''}/>
-            <span>${esc(t.title)}</span>
-            ${t.estimate_min ? `<em>${t.estimate_min}м</em>` : ''}
+          <div class="matrix-task ${it.status === 'done' ? 'done' : ''}" data-id="${it.id}">
+            <input type="checkbox" data-toggle="${it.id}" ${it.status === 'done' ? 'checked' : ''}/>
+            <span>${esc(it.title)}</span>
+            ${it.estimate_min ? `<em>${it.estimate_min}m</em>` : ''}
           </div>
         `;
       }
 
-      function taskForm(t) {
+      function taskForm(tk) {
         modalOpen(`
-          <h2>${t ? 'Изменить задачу' : 'Новая задача'}</h2>
-          <div class="field"><label>Что нужно сделать</label><input class="input" id="tf-title" value="${t ? esc(t.title) : ''}" /></div>
+          <h2>${tk ? esc(t('tasks.edit_title')) : esc(t('tasks.new_title'))}</h2>
+          <div class="field"><label>${esc(t('tasks.what'))}</label><input class="input" id="tf-title" value="${tk ? esc(tk.title) : ''}" /></div>
           <div class="grid cols-2" style="gap:14px">
-            <div class="field"><label>Квадрант</label><select class="input" id="tf-q">
-              ${[1, 2, 3, 4].map(q => `<option value="${q}" ${(t?.quadrant || 2) == q ? 'selected' : ''}>${QUADRANTS[q].label}</option>`).join('')}
+            <div class="field"><label>${esc(t('tasks.quadrant'))}</label><select class="input" id="tf-q">
+              ${[1, 2, 3, 4].map(q => `<option value="${q}" ${(tk?.quadrant || 2) == q ? 'selected' : ''}>${esc(tQuadrant(q))}</option>`).join('')}
             </select></div>
-            <div class="field"><label>Сфера</label><select class="input" id="tf-sphere">
+            <div class="field"><label>${esc(t('tasks.sphere'))}</label><select class="input" id="tf-sphere">
               <option value="">—</option>
-              ${SPHERES.map(s => `<option ${t?.sphere === s ? 'selected' : ''}>${s}</option>`).join('')}
+              ${SPHERES.map(s => `<option value="${s}" ${tk?.sphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
             </select></div>
-            <div class="field"><label>Цель</label><select class="input" id="tf-goal">
+            <div class="field"><label>${esc(t('tasks.goal'))}</label><select class="input" id="tf-goal">
               <option value="">—</option>
-              ${goals.map(g => `<option value="${g.id}" ${t?.goal_id == g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
+              ${goals.map(g => `<option value="${g.id}" ${tk?.goal_id == g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
             </select></div>
-            <div class="field"><label>Срок</label><input class="input" type="date" id="tf-due" value="${t?.due_date || ''}"/></div>
-            <div class="field"><label>Оценка (минут)</label><input class="input" type="number" id="tf-est" value="${t?.estimate_min || ''}"/></div>
+            <div class="field"><label>${esc(t('tasks.due'))}</label><input class="input" type="date" id="tf-due" value="${tk?.due_date || ''}"/></div>
+            <div class="field"><label>${esc(t('tasks.estimate'))}</label><input class="input" type="number" id="tf-est" value="${tk?.estimate_min || ''}"/></div>
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">Отмена</button>
-            <button class="btn btn-primary" id="tf-save">Сохранить</button>
+            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">${esc(t('common.cancel'))}</button>
+            <button class="btn btn-primary" id="tf-save">${esc(t('common.save'))}</button>
           </div>
         `);
         document.getElementById('tf-save').onclick = async () => {
@@ -442,16 +444,16 @@ window.OmnixTools = {
             due_date: document.getElementById('tf-due').value || null,
             estimate_min: +document.getElementById('tf-est').value || null,
           };
-          if (!body.title) return toast('Укажи название', 'error');
+          if (!body.title) return toast(t('tasks.required'), 'error');
           let err;
-          if (t) {
+          if (tk) {
             const { user_id, ...patch } = body;
-            ({ error: err } = await sb.from('tasks').update(patch).eq('id', t.id));
+            ({ error: err } = await sb.from('tasks').update(patch).eq('id', tk.id));
           } else {
             ({ error: err } = await sb.from('tasks').insert(body));
           }
-          if (err) return toast('Ошибка: ' + err.message, 'error');
-          modalClose(); reload(); toast('Сохранено', 'success');
+          if (err) return toast(t('common.error_with_msg', { msg: err.message }), 'error');
+          modalClose(); reload(); toast(t('common.saved'), 'success');
         };
       }
 
@@ -470,9 +472,9 @@ window.OmnixTools = {
     async render(c) {
       c.innerHTML = `
         <div class="toolbar">
-          <span class="muted">Утро · день · вечер. Нажми на день — отметишь выполнение.</span>
+          <span class="muted">${esc(t('habits.hint'))}</span>
           <span style="flex:1"></span>
-          <button class="btn btn-primary" id="h-add">+ Привычка</button>
+          <button class="btn btn-primary" id="h-add">${esc(t('habits.add_btn'))}</button>
         </div>
         <div id="habits-root"></div>
       `;
@@ -480,7 +482,6 @@ window.OmnixTools = {
         const items = await loadHabitsWithLogs();
         const groups = { morning: [], day: [], evening: [] };
         items.forEach(h => groups[h.time_of_day]?.push(h));
-        const labels = { morning: 'Утро', day: 'День', evening: 'Вечер' };
 
         const days = [];
         for (let i = 13; i >= 0; i--) {
@@ -490,12 +491,12 @@ window.OmnixTools = {
         document.getElementById('habits-root').innerHTML = items.length ? `
           ${Object.entries(groups).map(([k, list]) => list.length ? `
             <div class="card" style="margin-bottom:18px">
-              <h2>${labels[k]}</h2>
+              <h2>${esc(t(`times.${k}`))}</h2>
               <div class="habits-table">
                 <div class="habit-row-head">
                   <div></div>
                   ${days.map(d => `<div class="day-h">${new Date(d).getDate()}</div>`).join('')}
-                  <div class="muted" style="text-align:right; padding-right:8px">серия</div>
+                  <div class="muted" style="text-align:right; padding-right:8px">${esc(t('habits.streak'))}</div>
                 </div>
                 ${list.map(h => `
                   <div class="habit-row-data" data-id="${h.id}">
@@ -511,14 +512,14 @@ window.OmnixTools = {
               </div>
             </div>
           ` : '').join('')}
-        ` : '<div class="tool-empty">Нет привычек. Заведи первую — она сразу появится в дашборде.</div>';
+        ` : `<div class="tool-empty">${esc(t('habits.empty'))}</div>`;
 
         document.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
           await toggleHabitLog(b.dataset.toggle, b.dataset.date);
           reload();
         });
         document.querySelectorAll('[data-archive]').forEach(b => b.onclick = async () => {
-          if (!confirm('Архивировать привычку?')) return;
+          if (!confirm(t('habits.confirm_archive'))) return;
           await sb.from('habits').update({ archived: true }).eq('id', b.dataset.archive);
           reload();
         });
@@ -526,28 +527,28 @@ window.OmnixTools = {
 
       document.getElementById('h-add').onclick = () => {
         modalOpen(`
-          <h2>Новая привычка</h2>
-          <div class="field"><label>Название</label><input class="input" id="hf-name" placeholder="Например, бег 20 минут"/></div>
-          <div class="field"><label>Иконка (emoji)</label><input class="input" id="hf-icon" maxlength="2" placeholder="🏃"/></div>
-          <div class="field"><label>Время</label><select class="input" id="hf-time">
-            <option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option>
+          <h2>${esc(t('habits.new_title'))}</h2>
+          <div class="field"><label>${esc(t('habits.name'))}</label><input class="input" id="hf-name" placeholder="${esc(t('habits.name_ph'))}"/></div>
+          <div class="field"><label>${esc(t('habits.icon'))}</label><input class="input" id="hf-icon" maxlength="2" placeholder="🏃"/></div>
+          <div class="field"><label>${esc(t('habits.time'))}</label><select class="input" id="hf-time">
+            <option value="morning">${esc(t('times.morning'))}</option><option value="day">${esc(t('times.day'))}</option><option value="evening">${esc(t('times.evening'))}</option>
           </select></div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">Отмена</button>
-            <button class="btn btn-primary" id="hf-save">Создать</button>
+            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">${esc(t('common.cancel'))}</button>
+            <button class="btn btn-primary" id="hf-save">${esc(t('common.create'))}</button>
           </div>
         `);
         document.getElementById('hf-save').onclick = async () => {
           const uid = await getUid();
           const name = document.getElementById('hf-name').value.trim();
-          if (!name) return toast('Укажи название', 'error');
+          if (!name) return toast(t('habits.required'), 'error');
           const { error } = await sb.from('habits').insert({
             user_id: uid, name,
             icon: document.getElementById('hf-icon').value || '✓',
             time_of_day: document.getElementById('hf-time').value,
           });
-          if (error) return toast('Ошибка: ' + error.message, 'error');
-          modalClose(); reload(); toast('Создано', 'success');
+          if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+          modalClose(); reload(); toast(t('common.created'), 'success');
         };
       };
 
@@ -563,7 +564,7 @@ window.OmnixTools = {
         <div class="toolbar">
           <input type="month" class="input" id="fin-month" value="${todayStr().slice(0, 7)}" style="max-width:200px"/>
           <span style="flex:1"></span>
-          <button class="btn btn-primary" id="fin-add">+ Транзакция</button>
+          <button class="btn btn-primary" id="fin-add">${esc(t('finances.add_btn'))}</button>
         </div>
         <div id="fin-root"></div>
       `;
@@ -593,10 +594,10 @@ window.OmnixTools = {
         }, { income: 0, expense: 0 });
 
         const byCategory = {};
-        for (const t of items) {
-          if (t.kind !== 'expense') continue;
-          const cat = t.category || 'другое';
-          byCategory[cat] = (byCategory[cat] || 0) + t.amount;
+        for (const tk of items) {
+          if (tk.kind !== 'expense') continue;
+          const cat = tk.category || t('finances.cat_other');
+          byCategory[cat] = (byCategory[cat] || 0) + tk.amount;
         }
         const balance = totals.income - totals.expense;
         const cats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
@@ -604,65 +605,65 @@ window.OmnixTools = {
 
         document.getElementById('fin-root').innerHTML = `
           <div class="grid cols-4" style="margin-bottom:24px">
-            <div class="card stat"><div class="label">Доход за месяц</div><div class="value" style="color:var(--green); font-size:24px">${money(totals.income)}</div></div>
-            <div class="card stat"><div class="label">Расход за месяц</div><div class="value" style="color:var(--red); font-size:24px">${money(totals.expense)}</div></div>
-            <div class="card stat"><div class="label">Итог</div><div class="value" style="font-size:24px; color:${balance >= 0 ? 'var(--green)' : 'var(--red)'}">${money(balance)}</div></div>
-            <div class="card stat"><div class="label">Подушка (мес)</div><div class="value">${summary.cushionMonths}</div></div>
+            <div class="card stat"><div class="label">${esc(t('finances.stat_income'))}</div><div class="value" style="color:var(--green); font-size:24px">${money(totals.income)}</div></div>
+            <div class="card stat"><div class="label">${esc(t('finances.stat_expense'))}</div><div class="value" style="color:var(--red); font-size:24px">${money(totals.expense)}</div></div>
+            <div class="card stat"><div class="label">${esc(t('finances.stat_balance'))}</div><div class="value" style="font-size:24px; color:${balance >= 0 ? 'var(--green)' : 'var(--red)'}">${money(balance)}</div></div>
+            <div class="card stat"><div class="label">${esc(t('finances.stat_cushion'))}</div><div class="value">${summary.cushionMonths}</div></div>
           </div>
           <div class="grid cols-2">
             <div class="card">
-              <h2>Категории расходов</h2>
+              <h2>${esc(t('finances.categories'))}</h2>
               ${cats.length ? cats.map(([cat, amt]) => `
                 <div class="cat-row">
                   <span>${esc(cat)}</span>
                   <div class="bar"><i style="width:${(amt / totalExp) * 100}%"></i></div>
                   <strong>${money(amt)}</strong>
                 </div>
-              `).join('') : '<p class="muted">Расходов в этом месяце нет.</p>'}
+              `).join('') : `<p class="muted">${esc(t('finances.no_expenses'))}</p>`}
             </div>
             <div class="card">
-              <h2>Транзакции</h2>
+              <h2>${esc(t('finances.transactions'))}</h2>
               <div class="tx-list">
-                ${items.length ? items.map(t => `
+                ${items.length ? items.map(tk => `
                   <div class="tx-row">
-                    <span class="tx-date">${ruDate(t.date)}</span>
-                    <span>${esc(t.category || '—')}</span>
-                    <span class="muted" style="font-size:12px">${esc(t.note || '')}</span>
-                    <strong style="color:${t.kind === 'income' ? 'var(--green)' : 'var(--red)'}">${t.kind === 'income' ? '+' : '−'}${money(t.amount)}</strong>
-                    <button class="btn btn-sm btn-danger" data-del="${t.id}">×</button>
+                    <span class="tx-date">${ruDate(tk.date)}</span>
+                    <span>${esc(tk.category || '—')}</span>
+                    <span class="muted" style="font-size:12px">${esc(tk.note || '')}</span>
+                    <strong style="color:${tk.kind === 'income' ? 'var(--green)' : 'var(--red)'}">${tk.kind === 'income' ? '+' : '−'}${money(tk.amount)}</strong>
+                    <button class="btn btn-sm btn-danger" data-del="${tk.id}">×</button>
                   </div>
-                `).join('') : '<p class="muted">Нет транзакций за месяц.</p>'}
+                `).join('') : `<p class="muted">${esc(t('finances.no_tx'))}</p>`}
               </div>
             </div>
           </div>
         `;
         document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-          if (!confirm('Удалить?')) return;
+          if (!confirm(t('common.confirm_delete'))) return;
           await sb.from('transactions').delete().eq('id', b.dataset.del); reload();
         });
       }
 
       function txForm() {
         modalOpen(`
-          <h2>Новая транзакция</h2>
+          <h2>${esc(t('finances.new_title'))}</h2>
           <div class="grid cols-2" style="gap:14px">
-            <div class="field"><label>Тип</label><select class="input" id="tx-kind">
-              <option value="expense">Расход</option><option value="income">Доход</option>
+            <div class="field"><label>${esc(t('finances.kind'))}</label><select class="input" id="tx-kind">
+              <option value="expense">${esc(t('finances.expense'))}</option><option value="income">${esc(t('finances.income'))}</option>
             </select></div>
-            <div class="field"><label>Сумма (₽)</label><input class="input" type="number" step="0.01" id="tx-amt"/></div>
-            <div class="field"><label>Категория</label><input class="input" id="tx-cat" placeholder="еда / транспорт / зарплата"/></div>
-            <div class="field"><label>Дата</label><input class="input" type="date" id="tx-date" value="${todayStr()}"/></div>
+            <div class="field"><label>${esc(t('finances.amount'))}</label><input class="input" type="number" step="0.01" id="tx-amt"/></div>
+            <div class="field"><label>${esc(t('finances.category'))}</label><input class="input" id="tx-cat" placeholder="${esc(t('finances.cat_ph'))}"/></div>
+            <div class="field"><label>${esc(t('finances.date'))}</label><input class="input" type="date" id="tx-date" value="${todayStr()}"/></div>
           </div>
-          <div class="field"><label>Заметка</label><input class="input" id="tx-note"/></div>
+          <div class="field"><label>${esc(t('finances.note'))}</label><input class="input" id="tx-note"/></div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">Отмена</button>
-            <button class="btn btn-primary" id="tx-save">Добавить</button>
+            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">${esc(t('common.cancel'))}</button>
+            <button class="btn btn-primary" id="tx-save">${esc(t('finances.btn_add'))}</button>
           </div>
         `);
         document.getElementById('tx-save').onclick = async () => {
           const uid = await getUid();
           const rub = +document.getElementById('tx-amt').value;
-          if (!Number.isFinite(rub) || rub <= 0) return toast('Сумма должна быть > 0', 'error');
+          if (!Number.isFinite(rub) || rub <= 0) return toast(t('finances.err_amount'), 'error');
           const { error } = await sb.from('transactions').insert({
             user_id: uid,
             kind: document.getElementById('tx-kind').value,
@@ -671,8 +672,8 @@ window.OmnixTools = {
             date: document.getElementById('tx-date').value || todayStr(),
             note: document.getElementById('tx-note').value || null,
           });
-          if (error) return toast('Ошибка: ' + error.message, 'error');
-          modalClose(); reload(); toast('Добавлено', 'success');
+          if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+          modalClose(); reload(); toast(t('finances.added'), 'success');
         };
       }
 
@@ -695,24 +696,24 @@ window.OmnixTools = {
 
       c.innerHTML = `
         <div class="card">
-          <h2>Сегодня · ${ruDate(today.date)}</h2>
+          <h2>${esc(t('health.today_dt', { date: ruDate(today.date) }))}</h2>
           <div class="grid cols-3" style="margin-top:14px">
-            <div class="field"><label>Сон (часов)</label><input class="input" type="number" step="0.5" id="h-sleep" value="${today.sleep_hours ?? ''}"/></div>
-            <div class="field"><label>Вода (стаканы)</label><input class="input" type="number" id="h-water" value="${today.water_glasses ?? ''}"/></div>
-            <div class="field"><label>Шаги</label><input class="input" type="number" id="h-steps" value="${today.steps ?? ''}"/></div>
-            <div class="field"><label>Настроение (1–5)</label>
+            <div class="field"><label>${esc(t('health.sleep'))}</label><input class="input" type="number" step="0.5" id="h-sleep" value="${today.sleep_hours ?? ''}"/></div>
+            <div class="field"><label>${esc(t('health.water'))}</label><input class="input" type="number" id="h-water" value="${today.water_glasses ?? ''}"/></div>
+            <div class="field"><label>${esc(t('health.steps'))}</label><input class="input" type="number" id="h-steps" value="${today.steps ?? ''}"/></div>
+            <div class="field"><label>${esc(t('health.mood'))}</label>
               <div class="mood-row" id="mood-row">
                 ${[1, 2, 3, 4, 5].map(m => `<button class="mood-btn ${today.mood == m ? 'active' : ''}" data-mood="${m}">${['😞', '😕', '😐', '🙂', '😄'][m - 1]}</button>`).join('')}
               </div>
             </div>
-            <div class="field"><label>Вес (кг)</label><input class="input" type="number" step="0.1" id="h-weight" value="${today.weight ?? ''}"/></div>
-            <div class="field"><label>Давление</label><input class="input" id="h-bp" placeholder="120/80" value="${today.blood_pressure ?? ''}"/></div>
+            <div class="field"><label>${esc(t('health.weight'))}</label><input class="input" type="number" step="0.1" id="h-weight" value="${today.weight ?? ''}"/></div>
+            <div class="field"><label>${esc(t('health.bp'))}</label><input class="input" id="h-bp" placeholder="120/80" value="${today.blood_pressure ?? ''}"/></div>
           </div>
-          <button class="btn btn-primary" id="h-save" style="margin-top:8px">Сохранить день</button>
+          <button class="btn btn-primary" id="h-save" style="margin-top:8px">${esc(t('health.save_day'))}</button>
         </div>
 
         <div class="card" style="margin-top:20px">
-          <h2>За последние 14 дней</h2>
+          <h2>${esc(t('health.last_14'))}</h2>
           <div id="h-charts"></div>
         </div>
       `;
@@ -735,19 +736,19 @@ window.OmnixTools = {
           blood_pressure: document.getElementById('h-bp').value || null,
         };
         const { error } = await sb.from('health_logs').upsert(body, { onConflict: 'user_id,date' });
-        toast(error ? 'Ошибка: ' + error.message : 'Сохранено', error ? 'error' : 'success');
+        toast(error ? t('common.error_with_msg', { msg: error.message }) : t('common.saved'), error ? 'error' : 'success');
       };
 
       // Charts
       const days14 = [];
       for (let i = 13; i >= 0; i--) days14.push(daysAgo(i));
       const charts = ['sleep_hours', 'water_glasses', 'steps', 'mood'];
-      const labels = { sleep_hours: 'Сон, ч', water_glasses: 'Вода', steps: 'Шаги', mood: 'Настроение' };
+      const chartLabelKey = { sleep_hours: 'health.lbl_sleep', water_glasses: 'health.lbl_water', steps: 'health.lbl_steps', mood: 'health.lbl_mood' };
       const maxes = { sleep_hours: 10, water_glasses: 10, steps: 12000, mood: 5 };
 
       document.getElementById('h-charts').innerHTML = charts.map(metric => `
         <div class="chart-row">
-          <span class="chart-label">${labels[metric]}</span>
+          <span class="chart-label">${esc(t(chartLabelKey[metric]))}</span>
           <div class="chart-bars">
             ${days14.map(d => {
               const it = items.find(x => x.date === d);
@@ -767,9 +768,9 @@ window.OmnixTools = {
     async render(c) {
       c.innerHTML = `
         <div class="toolbar">
-          <span class="muted">15 минут в воскресенье меняют всю следующую неделю.</span>
+          <span class="muted">${esc(t('reviews.hint'))}</span>
           <span style="flex:1"></span>
-          <button class="btn btn-primary" id="r-new">+ Новый обзор</button>
+          <button class="btn btn-primary" id="r-new">${esc(t('reviews.new_btn'))}</button>
         </div>
         <div id="r-root"></div>
       `;
@@ -781,47 +782,47 @@ window.OmnixTools = {
         const items = data || [];
         const root = document.getElementById('r-root');
         if (!items.length) {
-          root.innerHTML = '<div class="tool-empty">Обзоров пока нет. Первый — самый важный.</div>';
+          root.innerHTML = `<div class="tool-empty">${esc(t('reviews.empty'))}</div>`;
           return;
         }
         root.innerHTML = '<div class="grid cols-2">' + items.map(rv => `
           <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:start">
               <div>
-                <span class="tag tag-${rv.period === 'week' ? 'user' : 'admin'}">${rv.period === 'week' ? 'неделя' : 'месяц'}</span>
+                <span class="tag tag-${rv.period === 'week' ? 'user' : 'admin'}">${esc(rv.period === 'week' ? t('reviews.week') : t('reviews.month'))}</span>
                 <h3 style="margin:8px 0 0">${ruDate(rv.date_from)} — ${ruDate(rv.date_to)}</h3>
               </div>
               <button class="btn btn-sm btn-danger" data-del="${rv.id}">×</button>
             </div>
-            ${rv.did ? `<div class="rev-block"><h4>✓ Что сделано</h4><p>${esc(rv.did)}</p></div>` : ''}
-            ${rv.didnt ? `<div class="rev-block"><h4>✗ Что не сделано</h4><p>${esc(rv.didnt)}</p></div>` : ''}
-            ${rv.why ? `<div class="rev-block"><h4>? Почему</h4><p>${esc(rv.why)}</p></div>` : ''}
-            ${rv.change ? `<div class="rev-block"><h4>→ Что менять</h4><p>${esc(rv.change)}</p></div>` : ''}
+            ${rv.did ? `<div class="rev-block"><h4>${esc(t('reviews.did'))}</h4><p>${esc(rv.did)}</p></div>` : ''}
+            ${rv.didnt ? `<div class="rev-block"><h4>${esc(t('reviews.didnt'))}</h4><p>${esc(rv.didnt)}</p></div>` : ''}
+            ${rv.why ? `<div class="rev-block"><h4>${esc(t('reviews.why'))}</h4><p>${esc(rv.why)}</p></div>` : ''}
+            ${rv.change ? `<div class="rev-block"><h4>${esc(t('reviews.change'))}</h4><p>${esc(rv.change)}</p></div>` : ''}
           </div>
         `).join('') + '</div>';
         root.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-          if (!confirm('Удалить обзор?')) return;
+          if (!confirm(t('reviews.confirm_delete'))) return;
           await sb.from('reviews').delete().eq('id', b.dataset.del); reload();
         });
       }
 
       function form() {
         modalOpen(`
-          <h2>Новый обзор</h2>
+          <h2>${esc(t('reviews.new_title'))}</h2>
           <div class="grid cols-2" style="gap:14px">
-            <div class="field"><label>Период</label><select class="input" id="rf-p">
-              <option value="week">Неделя</option><option value="month">Месяц</option>
+            <div class="field"><label>${esc(t('reviews.period'))}</label><select class="input" id="rf-p">
+              <option value="week">${esc(t('reviews.period_week'))}</option><option value="month">${esc(t('reviews.period_month'))}</option>
             </select></div>
-            <div class="field"><label>От</label><input class="input" type="date" id="rf-from" value="${daysAgo(7)}"/></div>
-            <div class="field"><label>До</label><input class="input" type="date" id="rf-to" value="${todayStr()}"/></div>
+            <div class="field"><label>${esc(t('reviews.from'))}</label><input class="input" type="date" id="rf-from" value="${daysAgo(7)}"/></div>
+            <div class="field"><label>${esc(t('reviews.to'))}</label><input class="input" type="date" id="rf-to" value="${todayStr()}"/></div>
           </div>
-          <div class="field"><label>✓ Что сделано</label><textarea class="input" id="rf-did" rows="3"></textarea></div>
-          <div class="field"><label>✗ Что не сделано</label><textarea class="input" id="rf-didnt" rows="2"></textarea></div>
-          <div class="field"><label>? Почему</label><textarea class="input" id="rf-why" rows="2"></textarea></div>
-          <div class="field"><label>→ Что менять</label><textarea class="input" id="rf-ch" rows="2"></textarea></div>
+          <div class="field"><label>${esc(t('reviews.did'))}</label><textarea class="input" id="rf-did" rows="3"></textarea></div>
+          <div class="field"><label>${esc(t('reviews.didnt'))}</label><textarea class="input" id="rf-didnt" rows="2"></textarea></div>
+          <div class="field"><label>${esc(t('reviews.why'))}</label><textarea class="input" id="rf-why" rows="2"></textarea></div>
+          <div class="field"><label>${esc(t('reviews.change'))}</label><textarea class="input" id="rf-ch" rows="2"></textarea></div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">Отмена</button>
-            <button class="btn btn-primary" id="rf-save">Сохранить</button>
+            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">${esc(t('common.cancel'))}</button>
+            <button class="btn btn-primary" id="rf-save">${esc(t('common.save'))}</button>
           </div>
         `);
         document.getElementById('rf-save').onclick = async () => {
@@ -836,8 +837,8 @@ window.OmnixTools = {
             why: document.getElementById('rf-why').value || null,
             change: document.getElementById('rf-ch').value || null,
           });
-          if (error) return toast('Ошибка: ' + error.message, 'error');
-          modalClose(); reload(); toast('Сохранено', 'success');
+          if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+          modalClose(); reload(); toast(t('common.saved'), 'success');
         };
       }
 
@@ -851,12 +852,12 @@ window.OmnixTools = {
     async render(c) {
       c.innerHTML = `
         <div class="toolbar">
-          <button class="tab-btn active" data-kind="">Все</button>
-          <button class="tab-btn" data-kind="note">Заметки</button>
-          <button class="tab-btn" data-kind="gratitude">Благодарности</button>
-          <button class="tab-btn" data-kind="idea">Идеи</button>
+          <button class="tab-btn active" data-kind="">${esc(t('journal.tab_all'))}</button>
+          <button class="tab-btn" data-kind="note">${esc(t('journal.tab_note'))}</button>
+          <button class="tab-btn" data-kind="gratitude">${esc(t('journal.tab_gratitude'))}</button>
+          <button class="tab-btn" data-kind="idea">${esc(t('journal.tab_idea'))}</button>
           <span style="flex:1"></span>
-          <button class="btn btn-primary" id="j-new">+ Запись</button>
+          <button class="btn btn-primary" id="j-new">${esc(t('journal.add_btn'))}</button>
         </div>
         <div id="j-root"></div>
       `;
@@ -875,7 +876,7 @@ window.OmnixTools = {
         const items = data || [];
         const root = document.getElementById('j-root');
         if (!items.length) {
-          root.innerHTML = '<div class="tool-empty">Записей нет. Голова — не склад. Разгрузи мысли в систему.</div>';
+          root.innerHTML = `<div class="tool-empty">${esc(t('journal.empty'))}</div>`;
           return;
         }
         const kindIcon = { note: '📝', gratitude: '🙏', idea: '💡' };
@@ -891,31 +892,31 @@ window.OmnixTools = {
           </div>
         `).join('') + '</div>';
         root.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-          if (!confirm('Удалить?')) return;
+          if (!confirm(t('common.confirm_delete'))) return;
           await sb.from('journal').delete().eq('id', b.dataset.del); reload();
         });
       }
 
       function form() {
         modalOpen(`
-          <h2>Новая запись</h2>
-          <div class="field"><label>Тип</label><select class="input" id="jf-k">
-            <option value="note">📝 Заметка</option>
-            <option value="gratitude">🙏 Благодарность</option>
-            <option value="idea">💡 Идея</option>
+          <h2>${esc(t('journal.new_title'))}</h2>
+          <div class="field"><label>${esc(t('journal.kind'))}</label><select class="input" id="jf-k">
+            <option value="note">${esc(t('journal.k_note'))}</option>
+            <option value="gratitude">${esc(t('journal.k_gratitude'))}</option>
+            <option value="idea">${esc(t('journal.k_idea'))}</option>
           </select></div>
-          <div class="field"><label>Заголовок (опционально)</label><input class="input" id="jf-title"/></div>
-          <div class="field"><label>Текст</label><textarea class="input" id="jf-body" rows="6" placeholder="Что у тебя на уме?"></textarea></div>
-          <div class="field"><label>Теги (через запятую)</label><input class="input" id="jf-tags"/></div>
+          <div class="field"><label>${esc(t('journal.title'))}</label><input class="input" id="jf-title"/></div>
+          <div class="field"><label>${esc(t('journal.body'))}</label><textarea class="input" id="jf-body" rows="6" placeholder="${esc(t('journal.body_ph'))}"></textarea></div>
+          <div class="field"><label>${esc(t('journal.tags'))}</label><input class="input" id="jf-tags"/></div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">Отмена</button>
-            <button class="btn btn-primary" id="jf-save">Сохранить</button>
+            <button class="btn btn-ghost" onclick="(${modalClose.toString()})()">${esc(t('common.cancel'))}</button>
+            <button class="btn btn-primary" id="jf-save">${esc(t('common.save'))}</button>
           </div>
         `);
         document.getElementById('jf-save').onclick = async () => {
           const uid = await getUid();
           const body = document.getElementById('jf-body').value.trim();
-          if (!body) return toast('Текст не может быть пустым', 'error');
+          if (!body) return toast(t('journal.err_empty'), 'error');
           const { error } = await sb.from('journal').insert({
             user_id: uid,
             kind: document.getElementById('jf-k').value,
@@ -923,8 +924,8 @@ window.OmnixTools = {
             body: body.slice(0, 5000),
             tags: document.getElementById('jf-tags').value || null,
           });
-          if (error) return toast('Ошибка: ' + error.message, 'error');
-          modalClose(); reload(); toast('Записано', 'success');
+          if (error) return toast(t('common.error_with_msg', { msg: error.message }), 'error');
+          modalClose(); reload(); toast(t('journal.saved'), 'success');
         };
       }
 
@@ -938,47 +939,37 @@ window.OmnixTools = {
     async render(c) {
       const insights = await computeInsights();
       const hour = new Date().getHours();
-      const greeting = hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+      const greetKey = hour < 12 ? 'ai.morning' : hour < 18 ? 'ai.day' : 'ai.evening';
 
       c.innerHTML = `
         <div class="card" style="background: linear-gradient(135deg, rgba(124,92,255,0.12), rgba(34,211,238,0.08)); border-color: rgba(124,92,255,0.3)">
-          <h2>${greeting}!</h2>
+          <h2>${esc(t(greetKey))}!</h2>
           ${hour < 12 ? `
-            <p class="muted">Утренний бриф. Топ задач на день:</p>
+            <p class="muted">${esc(t('ai.brief_title'))}</p>
             <ol class="ai-brief">
-              ${(insights.brief.top || []).map(t => `<li>${esc(t.title)}</li>`).join('') || '<li class="muted">Открытых задач нет.</li>'}
+              ${(insights.brief.top || []).map(tk => `<li>${esc(tk.title)}</li>`).join('') || `<li class="muted">${esc(t('ai.brief_empty'))}</li>`}
             </ol>
           ` : ''}
           ${insights.recap ? `
-            <p class="muted">Вечерний рекап:</p>
+            <p class="muted">${esc(t('ai.recap_title'))}</p>
             <ul class="ai-brief">
-              <li>Закрыто задач сегодня: <b>${insights.recap.todayDone}</b></li>
-              <li>Привычек выполнено: <b>${insights.recap.habitsDone} / ${insights.recap.habitsTotal}</b></li>
+              <li>${t('ai.recap_tasks', { n: insights.recap.todayDone })}</li>
+              <li>${t('ai.recap_habits', { done: insights.recap.habitsDone, total: insights.recap.habitsTotal })}</li>
             </ul>
           ` : ''}
         </div>
 
-        <h2 style="margin-top:28px">Инсайты системы</h2>
-        <p class="muted">Не push-спам, а контекстные подсказки на основе твоих данных.</p>
+        <h2 style="margin-top:28px">${esc(t('ai.insights_title'))}</h2>
+        <p class="muted">${esc(t('ai.insights_sub'))}</p>
         <div class="grid cols-2" style="margin-top:14px">
           ${insights.insights.length ? insights.insights.map(i => `
             <div class="card insight" data-priority="${i.priority}">
-              <div class="insight-kind">${insightKindLabel(i.kind)}</div>
+              <div class="insight-kind">${esc(t(`ai.kind.${i.kind}`)) || i.kind}</div>
               <p>${esc(i.text)}</p>
             </div>
-          `).join('') : `<div class="tool-empty" style="grid-column:1/-1">Всё в порядке. Ни одного триггера не сработало.</div>`}
+          `).join('') : `<div class="tool-empty" style="grid-column:1/-1">${esc(t('ai.insights_empty'))}</div>`}
         </div>
       `;
-
-      function insightKindLabel(k) {
-        return ({
-          habit_streak: '🔥 Привычка',
-          goal_stall: '🎯 Цель',
-          health_sleep: '💤 Здоровье',
-          finance_over: '💸 Финансы',
-          wheel_weak: '⚖ Баланс',
-        })[k] || k;
-      }
     },
   },
 
@@ -987,32 +978,41 @@ window.OmnixTools = {
     title: 'Геймификация — очки и уровни',
     async render(c) {
       const g = await computeGamification();
+      const BADGE_KEYS = {
+        'first-goal': 'gamification.bg_first_goal',
+        'goal-master': 'gamification.bg_goal_master',
+        'streak-7': 'gamification.bg_streak_7',
+        'streak-30': 'gamification.bg_streak_30',
+        'streak-100': 'gamification.bg_streak_100',
+        'tasks-10': 'gamification.bg_tasks_10',
+        'tasks-100': 'gamification.bg_tasks_100',
+      };
       c.innerHTML = `
         <div class="card" style="text-align:center; padding:40px">
           <div class="avatar-big">${g.level}</div>
-          <h2 style="margin:18px 0 6px">Уровень ${g.level}</h2>
-          <p class="muted">${g.xp} XP всего · ${g.xpToNext} до следующего уровня</p>
+          <h2 style="margin:18px 0 6px">${esc(t('gamification.level_n', { n: g.level }))}</h2>
+          <p class="muted">${esc(t('gamification.xp_total', { xp: g.xp, next: g.xpToNext }))}</p>
           <div class="bar" style="max-width:480px; margin:18px auto 0; height:10px"><i style="width:${(g.xpInLevel / 200) * 100}%; background:var(--grad)"></i></div>
         </div>
 
         <div class="grid cols-3" style="margin-top:24px">
-          <div class="card stat"><div class="label">Задач закрыто</div><div class="value" style="color:var(--cyan)">${g.stats.tasksDone}</div></div>
-          <div class="card stat"><div class="label">Целей выполнено</div><div class="value" style="color:var(--violet)">${g.stats.goalsDone}</div></div>
-          <div class="card stat"><div class="label">Лучшая серия привычки</div><div class="value" style="color:#F59E0B">${g.bestStreak}🔥</div></div>
+          <div class="card stat"><div class="label">${esc(t('gamification.stat_tasks_done'))}</div><div class="value" style="color:var(--cyan)">${g.stats.tasksDone}</div></div>
+          <div class="card stat"><div class="label">${esc(t('gamification.stat_goals_done'))}</div><div class="value" style="color:var(--violet)">${g.stats.goalsDone}</div></div>
+          <div class="card stat"><div class="label">${esc(t('gamification.stat_best_streak'))}</div><div class="value" style="color:#F59E0B">${g.bestStreak}🔥</div></div>
         </div>
 
         <div class="card" style="margin-top:20px">
-          <h2>Значки</h2>
+          <h2>${esc(t('gamification.badges'))}</h2>
           ${g.badges.length ? `
             <div class="badges-grid">
               ${g.badges.map(b => `
                 <div class="badge-card">
                   <div class="badge-icon">${b.icon}</div>
-                  <strong>${esc(b.name)}</strong>
+                  <strong>${esc(BADGE_KEYS[b.id] ? t(BADGE_KEYS[b.id]) : b.name)}</strong>
                 </div>
               `).join('')}
             </div>
-          ` : `<p class="muted">Пока нет значков. Закрой первую цель, выполни задачу или построй серию из 7 дней.</p>`}
+          ` : `<p class="muted">${esc(t('gamification.no_badges'))}</p>`}
         </div>
       `;
     },
@@ -1096,7 +1096,7 @@ async function computeInsights() {
     if (daysSince >= 3) {
       insights.push({
         kind: 'habit_streak',
-        text: `Привычка «${h.name}» — ${daysSince} дней без отметки. Восстановить серию сегодня?`,
+        text: t('ai.ins_habit_streak', { name: h.name, days: daysSince }),
         priority: 2,
       });
     }
@@ -1113,7 +1113,7 @@ async function computeInsights() {
   for (const g of stallGoals) {
     insights.push({
       kind: 'goal_stall',
-      text: `Цель «${g.title}» не двигалась 14+ дней. Запланировать шаг на завтра?`,
+      text: t('ai.ins_goal_stall', { title: g.title }),
       priority: 1,
     });
   }
@@ -1126,7 +1126,7 @@ async function computeInsights() {
   if (lowSleep >= 3) {
     insights.push({
       kind: 'health_sleep',
-      text: `Сон ниже 7ч в ${lowSleep} из 5 последних дней. Энергия и фокус будут падать.`,
+      text: t('ai.ins_health_sleep', { n: lowSleep }),
       priority: 1,
     });
   }
@@ -1145,7 +1145,7 @@ async function computeInsights() {
   if (avgIncome > 0 && cur > avgIncome) {
     insights.push({
       kind: 'finance_over',
-      text: `Расход за ${month} уже превысил средний доход. Проверь категории.`,
+      text: t('ai.ins_finance_over', { month }),
       priority: 1,
     });
   }
@@ -1156,7 +1156,7 @@ async function computeInsights() {
   if (weakest?.[0] && weakest[0].score <= 40) {
     insights.push({
       kind: 'wheel_weak',
-      text: `Слабая сфера — «${weakest[0].sphere}» (${weakest[0].score}/100). Поставь хотя бы одну цель здесь.`,
+      text: t('ai.ins_wheel_weak', { sphere: tSphere(weakest[0].sphere), score: weakest[0].score }),
       priority: 2,
     });
   }

@@ -38,6 +38,35 @@ button { font-family: inherit; cursor: pointer; }
 .brand { display: inline-flex; align-items: center; gap: 10px; }
 .brand img { width: 30px; height: 30px; filter: drop-shadow(0 0 12px rgba(124,92,255,0.5)); }
 .brand-name { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; }
+
+/* Language switcher */
+.lang-switch {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  padding: 6px 26px 6px 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23A0A0B0' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.lang-switch:hover { background-color: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.22); }
+.lang-switch option { background: var(--bg-1); color: var(--text); }
+/* Auth pages: top-right */
+.auth-wrap > .lang-switch {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 5;
+}
 .brand-os { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 

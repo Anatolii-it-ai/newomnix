@@ -121,7 +121,8 @@ window.esc = function esc(s) {
 window.fmtDate = function fmtDate(ts) {
   if (!ts) return '—';
   const d = new Date(ts);
-  return d.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
+  const locale = (typeof window.localeOf === 'function' ? window.localeOf() : 'ru-RU');
+  return d.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
 };
 
 // Hide unconfigured OAuth providers (Telegram скрываем — Supabase его не поддерживает нативно)

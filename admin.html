@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Админ-панель — OmnixOS</title>
+  <title data-i18n="admin.title">Админ-панель — OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=3" />
+  <link rel="stylesheet" href="app.css?v=7" />
 </head>
 <body>
   <div class="shell">
@@ -16,51 +16,52 @@
         <span class="brand-name">Omnix<span class="brand-os">OS</span></span>
       </a>
 
-      <div class="side-section">админ</div>
-      <a class="side-link active" data-tab="stats"><span class="ic">◎</span> Статистика</a>
-      <a class="side-link" data-tab="users"><span class="ic">◐</span> Пользователи</a>
-      <a class="side-link" data-tab="tools"><span class="ic">▦</span> Инструменты</a>
-      <a class="side-link" data-tab="groups"><span class="ic">∞</span> Группы доступа</a>
-      <a class="side-link" data-tab="logs"><span class="ic">↻</span> Логи действий</a>
+      <div class="side-section" data-i18n="nav.admin">админ</div>
+      <a class="side-link active" data-tab="stats"><span class="ic">◎</span> <span data-i18n="admin.stats_title">Статистика</span></a>
+      <a class="side-link" data-tab="users"><span class="ic">◐</span> <span data-i18n="admin.users_title">Пользователи</span></a>
+      <a class="side-link" data-tab="tools"><span class="ic">▦</span> <span data-i18n="admin.tools_title">Инструменты</span></a>
+      <a class="side-link" data-tab="groups"><span class="ic">∞</span> <span data-i18n="admin.groups_title">Группы доступа</span></a>
+      <a class="side-link" data-tab="logs"><span class="ic">↻</span> <span data-i18n="admin.logs_title">Логи действий</span></a>
 
       <div class="side-foot">
-        <a href="dashboard.html" style="color: var(--cyan);">→ В личный кабинет</a>
+        <a href="dashboard.html" style="color: var(--cyan);" data-i18n="nav.back_to_cabinet">→ В личный кабинет</a>
       </div>
     </aside>
 
     <main class="main">
       <div class="topbar">
-        <button class="menu-toggle" id="menu-toggle" aria-label="Меню">
+        <button class="menu-toggle" id="menu-toggle" data-i18n-aria="nav.menu" aria-label="Menu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
         </button>
-        <h1 id="page-title">Статистика</h1>
+        <h1 id="page-title" data-i18n="admin.stats_title">Статистика</h1>
         <div class="topbar-actions">
-          <span class="tag tag-admin">Администратор</span>
+          <select class="lang-switch" id="lang-switch" aria-label="Language"></select>
+          <span class="tag tag-admin" data-i18n="admin.role">Администратор</span>
           <div class="user-pill">
             <span class="avatar" id="topbar-avatar">A</span>
             <span id="topbar-name">…</span>
           </div>
-          <button class="btn btn-ghost btn-sm" id="logout-btn">Выйти</button>
+          <button class="btn btn-ghost btn-sm" id="logout-btn" data-i18n="auth.btn_logout">Выйти</button>
         </div>
       </div>
 
       <!-- Stats -->
       <section class="tab-panel" data-panel="stats">
         <div class="grid cols-4" style="margin-bottom:24px">
-          <div class="card stat"><div class="label">Всего пользователей</div><div class="value" id="s-users">—</div></div>
-          <div class="card stat"><div class="label">Активные</div><div class="value" id="s-active" style="color:var(--green)">—</div></div>
-          <div class="card stat"><div class="label">Заблокированы</div><div class="value" id="s-blocked" style="color:var(--red)">—</div></div>
-          <div class="card stat"><div class="label">Админов</div><div class="value" id="s-admins">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_users">Всего пользователей</div><div class="value" id="s-users">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_active">Активные</div><div class="value" id="s-active" style="color:var(--green)">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_blocked">Заблокированы</div><div class="value" id="s-blocked" style="color:var(--red)">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_admins">Админов</div><div class="value" id="s-admins">—</div></div>
         </div>
         <div class="grid cols-4">
-          <div class="card stat"><div class="label">Всего модулей</div><div class="value" id="s-tools">—</div></div>
-          <div class="card stat"><div class="label">Включено</div><div class="value" id="s-tools-on" style="color:var(--green)">—</div></div>
-          <div class="card stat"><div class="label">Групп доступа</div><div class="value" id="s-groups">—</div></div>
-          <div class="card stat"><div class="label">Новых за 24ч</div><div class="value" id="s-new" style="color:var(--violet)">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_tools_total">Всего модулей</div><div class="value" id="s-tools">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_tools_on">Включено</div><div class="value" id="s-tools-on" style="color:var(--green)">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_groups">Групп доступа</div><div class="value" id="s-groups">—</div></div>
+          <div class="card stat"><div class="label" data-i18n="admin.stat_new_24">Новых за 24ч</div><div class="value" id="s-new" style="color:var(--violet)">—</div></div>
         </div>
         <div class="card" style="margin-top:24px">
-          <h2>Активность за 24 часа</h2>
-          <p class="muted">Действий зафиксировано: <strong id="s-actions" style="color:var(--text)">—</strong></p>
+          <h2 data-i18n="admin.activity_24">Активность за 24 часа</h2>
+          <p class="muted" data-i18n-html="admin.actions_logged">Действий зафиксировано: <strong id="s-actions" style="color:var(--text)">—</strong></p>
         </div>
       </section>
 
@@ -68,15 +69,21 @@
       <section class="tab-panel" data-panel="users" hidden>
         <div class="card">
           <div class="toolbar">
-            <input class="input" id="u-search" placeholder="Поиск по email или имени" />
-            <button class="btn" id="u-refresh">Обновить</button>
+            <input class="input" id="u-search" data-i18n-placeholder="admin.search_users" placeholder="Поиск по email или имени" />
+            <button class="btn" id="u-refresh" data-i18n="common.refresh">Обновить</button>
             <span class="muted" id="u-total"></span>
           </div>
           <table class="table">
             <thead>
               <tr>
-                <th>ID</th><th>Email</th><th>Имя</th><th>Роль</th><th>Статус</th>
-                <th>Создан</th><th>Последний вход</th><th></th>
+                <th data-i18n="admin.th_id">ID</th>
+                <th data-i18n="admin.th_email">Email</th>
+                <th data-i18n="admin.th_name">Имя</th>
+                <th data-i18n="admin.th_role">Роль</th>
+                <th data-i18n="admin.th_status">Статус</th>
+                <th data-i18n="admin.th_created">Создан</th>
+                <th data-i18n="admin.th_last_login">Последний вход</th>
+                <th></th>
               </tr>
             </thead>
             <tbody id="u-tbody"></tbody>
@@ -88,12 +95,18 @@
       <section class="tab-panel" data-panel="tools" hidden>
         <div class="card">
           <div class="toolbar" style="justify-content: space-between">
-            <h2 style="margin:0">Все инструменты платформы</h2>
-            <button class="btn btn-primary" id="t-add-btn">+ Новый инструмент</button>
+            <h2 style="margin:0" data-i18n="admin.tools_all">Все инструменты платформы</h2>
+            <button class="btn btn-primary" id="t-add-btn" data-i18n="admin.new_tool">+ Новый инструмент</button>
           </div>
           <table class="table">
             <thead>
-              <tr><th>Slug</th><th>Название</th><th>Описание</th><th>Статус</th><th></th></tr>
+              <tr>
+                <th data-i18n="admin.th_slug">Slug</th>
+                <th data-i18n="admin.f_name">Название</th>
+                <th data-i18n="admin.th_descr">Описание</th>
+                <th data-i18n="admin.th_status">Статус</th>
+                <th></th>
+              </tr>
             </thead>
             <tbody id="t-tbody"></tbody>
           </table>
@@ -104,13 +117,18 @@
       <section class="tab-panel" data-panel="groups" hidden>
         <div class="card">
           <div class="toolbar" style="justify-content: space-between">
-            <h2 style="margin:0">Группы доступа</h2>
-            <button class="btn btn-primary" id="g-add-btn">+ Новая группа</button>
+            <h2 style="margin:0" data-i18n="admin.groups_h">Группы доступа</h2>
+            <button class="btn btn-primary" id="g-add-btn" data-i18n="admin.new_group">+ Новая группа</button>
           </div>
-          <p class="muted">Группа — это набор инструментов. Назначь группу пользователю — он получит все инструменты из неё.</p>
+          <p class="muted" data-i18n="admin.groups_descr">Группа — это набор инструментов. Назначь группу пользователю — он получит все инструменты из неё.</p>
           <table class="table">
             <thead>
-              <tr><th>Название</th><th>Инструменты</th><th>Участников</th><th></th></tr>
+              <tr>
+                <th data-i18n="admin.th_g_name">Название</th>
+                <th data-i18n="admin.th_g_tools">Инструменты</th>
+                <th data-i18n="admin.th_g_members">Участников</th>
+                <th></th>
+              </tr>
             </thead>
             <tbody id="g-tbody"></tbody>
           </table>
@@ -120,10 +138,16 @@
       <!-- Logs -->
       <section class="tab-panel" data-panel="logs" hidden>
         <div class="card">
-          <h2>Журнал действий</h2>
-          <p class="muted">Кто что сделал. Для аудита и отладки.</p>
+          <h2 data-i18n="admin.logs_h">Журнал действий</h2>
+          <p class="muted" data-i18n="admin.logs_descr">Кто что сделал. Для аудита и отладки.</p>
           <table class="table" style="margin-top:14px">
-            <thead><tr><th>Время</th><th>Кто</th><th>Действие</th><th>Объект</th><th>IP</th></tr></thead>
+            <thead><tr>
+              <th data-i18n="dashboard.th_time">Время</th>
+              <th data-i18n="admin.th_l_who">Кто</th>
+              <th data-i18n="dashboard.th_action">Действие</th>
+              <th data-i18n="admin.th_l_obj">Объект</th>
+              <th>IP</th>
+            </tr></thead>
             <tbody id="l-tbody"></tbody>
           </table>
         </div>
@@ -135,9 +159,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=1"></script>
-  <script src="auth.js?v=4"></script>
+  <script src="i18n.js?v=1"></script>
+  <script src="auth.js?v=5"></script>
   <script>
   (async () => {
+    renderLangSwitcher('lang-switch');
     const session = await requireAuth();
     if (!session) return;
     const profile = await omxGetProfile();
@@ -147,17 +173,19 @@
     document.getElementById('topbar-avatar').textContent = displayName[0].toUpperCase();
 
     // ---------- Tabs ----------
+    let currentTab = 'stats';
     const links = document.querySelectorAll('[data-tab]');
     const panels = document.querySelectorAll('[data-panel]');
-    const titles = {
-      stats: 'Статистика', users: 'Пользователи', tools: 'Инструменты',
-      groups: 'Группы доступа', logs: 'Логи действий',
+    const titleKeys = {
+      stats: 'admin.stats_title', users: 'admin.users_title', tools: 'admin.tools_title',
+      groups: 'admin.groups_title', logs: 'admin.logs_title',
     };
     const loaders = { stats: loadStats, users: loadUsers, tools: loadTools };
     function activate(name) {
+      currentTab = name;
       links.forEach(l => l.classList.toggle('active', l.dataset.tab === name));
       panels.forEach(p => p.hidden = p.dataset.panel !== name);
-      document.getElementById('page-title').textContent = titles[name];
+      document.getElementById('page-title').textContent = t(titleKeys[name]);
       loaders[name]?.();
     }
     links.forEach(l => l.addEventListener('click', (e) => {
@@ -173,7 +201,7 @@
     // ---------- Stats ----------
     async function loadStats() {
       const { data, error } = await sb.rpc('admin_stats');
-      if (error) return toast('Не удалось загрузить статистику', 'error');
+      if (error) return toast(t('admin.err_load_stats'), 'error');
       document.getElementById('s-users').textContent = data.users_total;
       document.getElementById('s-active').textContent = data.users_active;
       document.getElementById('s-blocked').textContent = data.users_blocked;
@@ -190,7 +218,7 @@
 
     async function loadUsers() {
       const { data, error } = await sb.rpc('admin_list_users');
-      if (error) return toast('Не удалось загрузить пользователей', 'error');
+      if (error) return toast(t('admin.err_load_users'), 'error');
       cachedUsers = data || [];
       renderUsers();
     }
@@ -200,7 +228,7 @@
       const filtered = q
         ? cachedUsers.filter(u => (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q))
         : cachedUsers;
-      document.getElementById('u-total').textContent = `Всего: ${filtered.length}`;
+      document.getElementById('u-total').textContent = `${t('common.total')}: ${filtered.length}`;
       const tbody = document.getElementById('u-tbody');
       tbody.innerHTML = filtered.map(u => `
         <tr>
@@ -208,15 +236,15 @@
           <td>${esc(u.email)}</td>
           <td>${esc(u.name || '—')}</td>
           <td><span class="tag tag-${u.role}">${u.role}</span></td>
-          <td><span class="tag tag-${u.status === 'active' ? 'active' : 'blocked'}">${u.status === 'active' ? 'актив' : 'блок'}</span></td>
+          <td><span class="tag tag-${u.status === 'active' ? 'active' : 'blocked'}">${u.status === 'active' ? t('admin.st_active') : t('admin.st_blocked')}</span></td>
           <td class="muted">${fmtDate(u.created_at)}</td>
           <td class="muted">${fmtDate(u.last_login_at)}</td>
           <td class="row-actions">
-            <button class="btn btn-sm" data-edit="${u.id}">Управлять</button>
+            <button class="btn btn-sm" data-edit="${u.id}">${esc(t('admin.manage'))}</button>
             <button class="btn btn-sm btn-danger" data-del="${u.id}">×</button>
           </td>
         </tr>
-      `).join('') || `<tr><td colspan="8" class="muted">Пользователи не найдены.</td></tr>`;
+      `).join('') || `<tr><td colspan="8" class="muted">${esc(t('admin.not_found'))}</td></tr>`;
 
       tbody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editUser(b.dataset.edit)));
       tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => deleteUser(b.dataset.del)));
@@ -227,7 +255,7 @@
 
     async function editUser(id) {
       const u = cachedUsers.find(x => x.id === id);
-      if (!u) return toast('Не найден', 'error');
+      if (!u) return toast(t('common.error'), 'error');
 
       const [toolsRes, userToolsRes] = await Promise.all([
         sb.from('tools').select('*').order('id'),
@@ -239,44 +267,48 @@
       openModal(`
         <h2>${esc(u.email)}</h2>
         <div class="tabs">
-          <button class="tab active" data-mt="info">Профиль</button>
-          <button class="tab" data-mt="access">Доступы</button>
+          <button class="tab active" data-mt="info">${esc(t('admin.tabs_profile'))}</button>
+          <button class="tab" data-mt="access">${esc(t('admin.tabs_access'))}</button>
         </div>
         <div data-mp="info">
           <div class="field">
-            <label>Имя</label>
+            <label>${esc(t('admin.th_name'))}</label>
             <input class="input" id="m-name" value="${esc(u.name || '')}" />
           </div>
           <div class="field">
-            <label>Роль</label>
+            <label>${esc(t('admin.th_role'))}</label>
             <select class="input" id="m-role">
-              <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
-              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>${esc(t('admin.role_user'))}</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>${esc(t('admin.role_admin'))}</option>
             </select>
           </div>
           <div class="field">
-            <label>Статус</label>
+            <label>${esc(t('admin.th_status'))}</label>
             <select class="input" id="m-status">
-              <option value="active" ${u.status === 'active' ? 'selected' : ''}>активен</option>
-              <option value="blocked" ${u.status === 'blocked' ? 'selected' : ''}>заблокирован</option>
+              <option value="active" ${u.status === 'active' ? 'selected' : ''}>${esc(t('admin.status_active'))}</option>
+              <option value="blocked" ${u.status === 'blocked' ? 'selected' : ''}>${esc(t('admin.status_blocked'))}</option>
             </select>
           </div>
-          <p class="muted" style="font-size:12px">ID: ${u.id} · создан ${fmtDate(u.created_at)} · email подтверждён: ${u.email_confirmed_at ? 'да' : 'нет'}</p>
+          <p class="muted" style="font-size:12px">${t('admin.meta_user', { id: u.id, created: fmtDate(u.created_at), confirmed: u.email_confirmed_at ? t('admin.yes') : t('admin.no') })}</p>
         </div>
         <div data-mp="access" hidden>
-          <h3>Доступы к инструментам</h3>
+          <h3>${esc(t('admin.access_h'))}</h3>
           <div class="grid cols-2" style="margin-bottom:16px">
-            ${allTools.map(t => `
-              <label class="checkbox">
-                <input type="checkbox" data-tool="${t.id}" ${userToolIds.has(t.id) ? 'checked' : ''} ${!t.enabled ? 'disabled' : ''}/>
-                <span>${esc(t.name)} ${!t.enabled ? '<span class="tag tag-disabled">off</span>' : ''}</span>
-              </label>
-            `).join('')}
+            ${allTools.map(tl => {
+              const localized = t(`tools.${tl.slug}.title`);
+              const name = (localized && localized !== `tools.${tl.slug}.title`) ? localized.split('—')[0].trim() : tl.name;
+              return `
+                <label class="checkbox">
+                  <input type="checkbox" data-tool="${tl.id}" ${userToolIds.has(tl.id) ? 'checked' : ''} ${!tl.enabled ? 'disabled' : ''}/>
+                  <span>${esc(name)} ${!tl.enabled ? `<span class="tag tag-disabled">${esc(t('admin.tool_off'))}</span>` : ''}</span>
+                </label>
+              `;
+            }).join('')}
           </div>
         </div>
         <div class="modal-foot">
-          <button class="btn btn-ghost" id="m-cancel">Отмена</button>
-          <button class="btn btn-primary" id="m-save">Сохранить</button>
+          <button class="btn btn-ghost" id="m-cancel">${esc(t('common.cancel'))}</button>
+          <button class="btn btn-primary" id="m-save">${esc(t('common.save'))}</button>
         </div>
       `);
 
@@ -292,7 +324,7 @@
           role: document.getElementById('m-role').value,
           status: document.getElementById('m-status').value,
         }).eq('id', id);
-        if (profErr) return toast('Не удалось сохранить профиль', 'error');
+        if (profErr) return toast(t('admin.err_save_profile'), 'error');
 
         const newToolIds = new Set(
           [...document.querySelectorAll('[data-tool]:checked')].map(c => +c.dataset.tool)
@@ -307,91 +339,87 @@
           await sb.from('user_tools').delete().eq('user_id', id).in('tool_id', toRemove);
         }
 
-        toast('Сохранено', 'success'); closeModal(); loadUsers();
+        toast(t('common.saved'), 'success'); closeModal(); loadUsers();
       };
     }
 
     async function deleteUser(id) {
-      if (id === session.user.id) return toast('Нельзя удалить себя', 'error');
-      if (!confirm('Удалить пользователя? Действие необратимо.')) return;
+      if (id === session.user.id) return toast(t('admin.cant_delete_self'), 'error');
+      if (!confirm(t('admin.confirm_delete_user'))) return;
       const { error } = await sb.rpc('admin_delete_user', { target_id: id });
-      if (error) return toast(error.message?.includes('cant_delete_self') ? 'Нельзя удалить себя' : 'Ошибка удаления', 'error');
-      toast('Удалён', 'success'); loadUsers();
+      if (error) return toast(error.message?.includes('cant_delete_self') ? t('admin.cant_delete_self') : t('common.error'), 'error');
+      toast(t('common.deleted'), 'success'); loadUsers();
     }
 
     // ---------- Tools ----------
     async function loadTools() {
       const { data, error } = await sb.from('tools').select('*').order('id');
-      if (error) return toast('Не удалось загрузить инструменты', 'error');
+      if (error) return toast(t('admin.err_load_tools'), 'error');
       const tbody = document.getElementById('t-tbody');
-      tbody.innerHTML = data.map(t => `
-        <tr>
-          <td><code style="font-size:12px">${esc(t.slug)}</code></td>
-          <td>${esc(t.name)}</td>
-          <td class="muted">${esc(t.description || '—')}</td>
-          <td><span class="tag tag-${t.enabled ? 'active' : 'disabled'}">${t.enabled ? 'вкл' : 'выкл'}</span></td>
-          <td class="row-actions">
-            <button class="btn btn-sm" data-toggle="${t.id}" data-state="${t.enabled ? '1' : '0'}">${t.enabled ? 'Отключить' : 'Включить'}</button>
-            <button class="btn btn-sm btn-danger" data-del="${t.id}">×</button>
-          </td>
-        </tr>
-      `).join('') || `<tr><td colspan="5" class="muted">Инструментов нет.</td></tr>`;
+      tbody.innerHTML = data.map(tl => {
+        const localized = t(`tools.${tl.slug}.title`);
+        const name = (localized && localized !== `tools.${tl.slug}.title`) ? localized.split('—')[0].trim() : tl.name;
+        return `
+          <tr>
+            <td><code style="font-size:12px">${esc(tl.slug)}</code></td>
+            <td>${esc(name)}</td>
+            <td class="muted">${esc(tl.description || '—')}</td>
+            <td><span class="tag tag-${tl.enabled ? 'active' : 'disabled'}">${tl.enabled ? esc(t('admin.tool_on')) : esc(t('admin.tool_off_short'))}</span></td>
+            <td class="row-actions">
+              <button class="btn btn-sm" data-toggle="${tl.id}" data-state="${tl.enabled ? '1' : '0'}">${tl.enabled ? esc(t('admin.btn_disable')) : esc(t('admin.btn_enable'))}</button>
+              <button class="btn btn-sm btn-danger" data-del="${tl.id}">×</button>
+            </td>
+          </tr>
+        `;
+      }).join('') || `<tr><td colspan="5" class="muted">${esc(t('admin.no_tools'))}</td></tr>`;
 
       tbody.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
         const next = b.dataset.state === '0';
         const { error } = await sb.from('tools').update({ enabled: next }).eq('id', +b.dataset.toggle);
-        if (error) return toast('Ошибка', 'error');
+        if (error) return toast(t('common.error'), 'error');
         loadTools();
       }));
       tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Удалить инструмент? Будут отозваны все доступы.')) return;
+        if (!confirm(t('admin.confirm_delete_tool'))) return;
         const { error } = await sb.from('tools').delete().eq('id', +b.dataset.del);
-        if (error) return toast('Ошибка', 'error');
+        if (error) return toast(t('common.error'), 'error');
         loadTools();
       }));
     }
 
     document.getElementById('t-add-btn').addEventListener('click', () => {
       openModal(`
-        <h2>Новый инструмент</h2>
-        <div class="field"><label>Slug (англ., уникальный)</label><input class="input" id="nt-slug" /></div>
-        <div class="field"><label>Название</label><input class="input" id="nt-name" /></div>
-        <div class="field"><label>Описание</label><textarea class="input" id="nt-desc" rows="3"></textarea></div>
-        <div class="field"><label>Иконка (символ)</label><input class="input" id="nt-icon" maxlength="2" /></div>
+        <h2>${esc(t('admin.new_tool_title'))}</h2>
+        <div class="field"><label>${esc(t('admin.f_slug'))}</label><input class="input" id="nt-slug" /></div>
+        <div class="field"><label>${esc(t('admin.f_name'))}</label><input class="input" id="nt-name" /></div>
+        <div class="field"><label>${esc(t('admin.f_descr'))}</label><textarea class="input" id="nt-desc" rows="3"></textarea></div>
+        <div class="field"><label>${esc(t('admin.f_icon'))}</label><input class="input" id="nt-icon" maxlength="2" /></div>
         <div class="modal-foot">
-          <button class="btn btn-ghost" id="nt-cancel">Отмена</button>
-          <button class="btn btn-primary" id="nt-save">Создать</button>
+          <button class="btn btn-ghost" id="nt-cancel">${esc(t('common.cancel'))}</button>
+          <button class="btn btn-primary" id="nt-save">${esc(t('common.create'))}</button>
         </div>
       `);
       document.getElementById('nt-cancel').onclick = closeModal;
       document.getElementById('nt-save').onclick = async () => {
         const slug = document.getElementById('nt-slug').value.trim();
         const name = document.getElementById('nt-name').value.trim();
-        if (!slug || !name) return toast('Slug и название обязательны', 'error');
+        if (!slug || !name) return toast(t('admin.slug_required'), 'error');
         const { error } = await sb.from('tools').insert({
           slug, name,
           description: document.getElementById('nt-desc').value.trim() || null,
           icon: document.getElementById('nt-icon').value.trim() || null,
         });
-        if (error) return toast(error.code === '23505' ? 'Slug уже занят' : 'Ошибка', 'error');
-        toast('Создан', 'success'); closeModal(); loadTools();
+        if (error) return toast(error.code === '23505' ? t('admin.slug_taken') : t('common.error'), 'error');
+        toast(t('common.created'), 'success'); closeModal(); loadTools();
       };
     });
 
     // ---------- Groups / Logs (требуют отдельных таблиц — пока заглушки) ----------
-    document.querySelector('[data-panel="groups"]').innerHTML = `
-      <div class="card">
-        <h2 style="margin-top:0">Группы доступа</h2>
-        <p class="muted">Раздел появится позже. Требует таблиц <code>groups</code> и <code>group_tools</code> в БД.</p>
-        <p class="muted">Пока используй прямые доступы к инструментам в карточке пользователя (вкладка «Доступы»).</p>
-      </div>
-    `;
-    document.querySelector('[data-panel="logs"]').innerHTML = `
-      <div class="card">
-        <h2 style="margin-top:0">Журнал действий</h2>
-        <p class="muted">Раздел появится позже. Требует таблицы <code>audit_logs</code> и триггеров на ключевые операции.</p>
-      </div>
-    `;
+    function renderStubs() {
+      document.querySelector('[data-panel="groups"]').innerHTML = `<div class="card">${t('admin.groups_stub')}</div>`;
+      document.querySelector('[data-panel="logs"]').innerHTML = `<div class="card">${t('admin.logs_stub')}</div>`;
+    }
+    renderStubs();
 
     // ---------- Modal infra ----------
     function openModal(html) {
@@ -406,6 +434,13 @@
     function debounce(fn, ms) {
       let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); };
     }
+
+    document.addEventListener('langchange', () => {
+      document.getElementById('page-title').textContent = t(titleKeys[currentTab]);
+      renderStubs();
+      if (currentTab === 'users') renderUsers();
+      if (currentTab === 'tools') loadTools();
+    });
 
     loadStats();
   })();
