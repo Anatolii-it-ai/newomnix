@@ -98,15 +98,21 @@ const SPHERES = [
 (function particles() {
   const c = document.getElementById('bg-canvas');
   if (!c) return;
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', { alpha: true });
 
+  const isMobile = window.matchMedia('(max-width: 720px)').matches;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // На мобилках и при reduced-motion — рисуем один статичный кадр и выходим.
+  // Это убирает основной источник нагрузки при скролле на слабых устройствах.
   let w, h, dpr, particles;
-  const COUNT = 70;
+  const COUNT = isMobile ? 24 : 40;
 
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    w = c.width = window.innerWidth * dpr;
-    h = c.height = window.innerHeight * dpr;
+    // DPR=1 — для фоновых частиц визуально неотличимо, но в 2-4 раза дешевле.
+    dpr = 1;
+    w = c.width = Math.floor(window.innerWidth * dpr);
+    h = c.height = Math.floor(window.innerHeight * dpr);
     c.style.width = window.innerWidth + 'px';
     c.style.height = window.innerHeight + 'px';
   }
@@ -116,17 +122,19 @@ const SPHERES = [
     particles = Array.from({ length: COUNT }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.15 * dpr,
-      vy: (Math.random() - 0.5) * 0.15 * dpr,
-      r: (Math.random() * 1.4 + 0.4) * dpr,
+      vx: (Math.random() - 0.5) * 0.15,
+      vy: (Math.random() - 0.5) * 0.15,
+      r: Math.random() * 1.4 + 0.4,
       hue: Math.random() < 0.5 ? '124, 92, 255' : '34, 211, 238',
     }));
   }
 
-  function step() {
+  const MAX_DIST = 140;
+  const MAX_DIST_SQ = MAX_DIST * MAX_DIST;
+
+  function drawFrame() {
     ctx.clearRect(0, 0, w, h);
 
-    // Draw connections
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       p.x += p.vx; p.y += p.vy;
@@ -137,11 +145,10 @@ const SPHERES = [
         const q = particles[j];
         const dx = p.x - q.x, dy = p.y - q.y;
         const d2 = dx * dx + dy * dy;
-        const max = 140 * dpr;
-        if (d2 < max * max) {
-          const a = 1 - Math.sqrt(d2) / max;
+        if (d2 < MAX_DIST_SQ) {
+          const a = 1 - Math.sqrt(d2) / MAX_DIST;
           ctx.strokeStyle = `rgba(${p.hue}, ${a * 0.18})`;
-          ctx.lineWidth = 0.6 * dpr;
+          ctx.lineWidth = 0.6;
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(q.x, q.y);
@@ -154,18 +161,66 @@ const SPHERES = [
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fill();
     }
-
-    requestAnimationFrame(step);
   }
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    resize();
+  // Один статичный кадр для случаев, когда анимация не нужна.
+  if (reduceMotion || isMobile) {
+    init();
+    drawFrame();
+    window.addEventListener('resize', () => { init(); drawFrame(); }, { passive: true });
     return;
   }
 
+  // Throttle до ~30 fps — для фоновых частиц визуально достаточно,
+  // в 2 раза меньше работы на главном потоке.
+  const FRAME_MS = 33;
+  let last = 0;
+  let rafId = 0;
+  let running = false;
+
+  function loop(t) {
+    if (!running) return;
+    if (t - last >= FRAME_MS) {
+      last = t;
+      drawFrame();
+    }
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    if (running) return;
+    running = true;
+    last = 0;
+    rafId = requestAnimationFrame(loop);
+  }
+  function stop() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+
   init();
-  step();
-  window.addEventListener('resize', () => init(), { passive: true });
+  start();
+
+  // Пауза, когда вкладка свёрнута или canvas скроллом ушёл из вида.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop(); else start();
+  });
+
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      const visible = entries.some(e => e.isIntersecting);
+      if (visible) start(); else stop();
+    });
+    io.observe(c);
+  }
+
+  // Debounce resize, чтобы не пересоздавать массив частиц на каждый пиксель.
+  let resizeT;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => init(), 150);
+  }, { passive: true });
 })();
 
 // 3. Reveal on scroll ---------------------------------------------------
