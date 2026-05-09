@@ -98,15 +98,6 @@ window.savePasswordCredential = async function savePasswordCredential(email, pas
   } catch {}
 };
 
-// ---------- LEGACY: api() для tools.js ----------
-// Пока не мигрирован tools.js, вызовы /api/tools/* сразу возвращают ошибку.
-// После миграции (следующий сеанс) этот блок удалится.
-window.API_BASE = '';
-window.api = async function api(method, url) {
-  console.warn('[omx] legacy api() called — этот эндпоинт ещё не мигрирован на Supabase:', method, url);
-  return { ok: false, error: 'not_migrated' };
-};
-
 // ---------- Утилиты UI ----------
 
 window.toast = function toast(msg, kind) {
