@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>OmnixOS</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
@@ -231,10 +234,10 @@
       const titleEl = $('page-title');
       if (titleEl) titleEl.textContent = tabTitles[name] || name;
       try {
-        if (name === 'tools') loadTools();
-        if (name === 'notifications') loadNotificationsPage();
-        if (name === 'profile') loadProfile();
-        if (name === 'subscription') loadSubscription();
+        if (name === 'tools' && typeof loadTools === 'function') loadTools();
+        if (name === 'notifications' && typeof loadNotificationsPage === 'function') loadNotificationsPage();
+        if (name === 'profile' && typeof loadProfile === 'function') loadProfile();
+        if (name === 'subscription' && typeof loadSubscription === 'function') loadSubscription();
       } catch (e) { console.error('tab loader error', e); }
     }
     links.forEach(l => l.addEventListener('click', (e) => {
