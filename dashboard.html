@@ -87,8 +87,11 @@
 
         <div class="grid cols-2" style="margin-bottom:24px">
           <div class="card">
-            <h2 data-i18n="dashboard.wheel_title">Колесо баланса</h2>
-            <p class="muted" style="margin-top:-10px; margin-bottom:14px" data-i18n="dashboard.wheel_subtitle">Нажми на сферу, чтобы увидеть задачи по ней</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0">
+              <h2 data-i18n="dashboard.wheel_title" style="margin:0">Колесо баланса</h2>
+              <button id="wheel-edit-btn" class="btn btn-sm btn-ghost" type="button" data-i18n-title="dashboard.wheel_edit" title="Настроить сферы">⚙</button>
+            </div>
+            <p class="muted" style="margin: 6px 0 14px" data-i18n="dashboard.wheel_subtitle">Нажми на сферу, чтобы увидеть задачи по ней</p>
             <div id="ov-wheel" class="wheel-mini-grid">
               <div id="ov-wheel-svg" style="overflow:visible"></div>
               <div id="ov-wheel-list"></div>
@@ -346,14 +349,14 @@
       const todayStr = toDateStr(today);
       const dateStr = today.toLocaleDateString(localeOf(), { weekday: 'long', day: 'numeric', month: 'long' });
 
-      const [wheelRes, habitsRes, openTasksRes, todayLogsRes] = await Promise.all([
-        sb.from('wheel_scores').select('sphere, score').eq('user_id', user.id),
+      const [spheresRes, habitsRes, openTasksRes, todayLogsRes] = await Promise.all([
+        sb.from('wheel_spheres').select('id, name, color, sort_order, score').eq('user_id', user.id).order('sort_order'),
         sb.from('habits').select('id, name, icon, time_of_day').eq('user_id', user.id).eq('archived', false).order('time_of_day'),
         sb.from('tasks').select('id, title, quadrant, due_date, status').eq('user_id', user.id).eq('status', 'open').order('quadrant'),
         sb.from('habit_logs').select('habit_id').eq('date', todayStr),
       ]);
 
-      const wheel = wheelRes.data || [];
+      userSpheres = spheresRes.data || [];
       const habits = habitsRes.data || [];
       const openTasks = openTasksRes.data || [];
       const todayHabitIds = new Set((todayLogsRes.data || []).map(l => l.habit_id));
@@ -371,8 +374,11 @@
       document.getElementById('ov-today-summary').innerHTML = summaryParts.join(' ');
 
       // Wheel render — SVG with editable scores + clickable spheres
-      const wheelMap = Object.fromEntries(wheel.map(w => [w.sphere, w.score]));
-      const wheelItems = SPHERES.map(s => ({ sphere: s, score: wheelMap[s] ?? 50 }));
+      // Если у пользователя ещё нет сфер (миграция не отработала / новый юзер) — рендерим дефолтные 8 как fallback
+      let wheelItems = userSpheres;
+      if (!wheelItems.length) {
+        wheelItems = DEFAULT_SPHERES.map((s, i) => ({ name: s.name, color: s.color, sort_order: i, score: 50 }));
+      }
       renderWheelSVG(wheelItems, openSphereTasks);
 
       // Today list — habits first (max 4), then tasks (max 3)
@@ -516,11 +522,25 @@
     }
 
     // ---------- Колесо баланса: SVG + клик по сфере ----------
-    const SPHERES = ['Здоровье', 'Работа', 'Деньги', 'Отношения', 'Развитие', 'Отдых', 'Творчество', 'Дух'];
-    const SPHERE_COLORS = {
-      'Здоровье': '#EF4444', 'Работа': '#22D3EE', 'Деньги': '#10B981', 'Отношения': '#EC4899',
-      'Развитие': '#7C5CFF', 'Отдых': '#F59E0B', 'Творчество': '#06B6D4', 'Дух': '#8B5CF6',
-    };
+    // Дефолтные сферы — fallback и preset для новых юзеров (используются также при resetе)
+    const DEFAULT_SPHERES = [
+      { name: 'Здоровье',   color: '#EF4444' },
+      { name: 'Работа',     color: '#22D3EE' },
+      { name: 'Деньги',     color: '#10B981' },
+      { name: 'Отношения',  color: '#EC4899' },
+      { name: 'Развитие',   color: '#7C5CFF' },
+      { name: 'Отдых',      color: '#F59E0B' },
+      { name: 'Творчество', color: '#06B6D4' },
+      { name: 'Дух',        color: '#8B5CF6' },
+    ];
+    // Текущие сферы пользователя (загружаются в loadOverviewData)
+    let userSpheres = [];
+    function getSphereColor(name) {
+      const s = userSpheres.find(x => x.name === name);
+      if (s) return s.color;
+      const d = DEFAULT_SPHERES.find(x => x.name === name);
+      return d ? d.color : '#7C5CFF';
+    }
     const ruShortDate = (s) => s ? new Date(s).toLocaleDateString(localeOf(), { day: 'numeric', month: 'short' }) : '';
 
     function renderWheelSVG(items, onSphereClick) {
@@ -528,6 +548,7 @@
       const ctrl = document.getElementById('ov-wheel-list');
       if (!wrap || !ctrl) return;
       const N = items.length;
+      if (N < 1) { wrap.innerHTML = ''; ctrl.innerHTML = ''; return; }
       const sectorAngle = (Math.PI * 2) / N;
       const maxR = 100;
 
@@ -538,20 +559,20 @@
         const x1 = Math.cos(a0) * r, y1 = Math.sin(a0) * r;
         const x2 = Math.cos(a1) * r, y2 = Math.sin(a1) * r;
         const large = sectorAngle > Math.PI ? 1 : 0;
-        const color = SPHERE_COLORS[s.sphere] || '#7C5CFF';
+        const color = s.color || '#7C5CFF';
         return `<path d="M0 0 L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z"
           fill="${color}" fill-opacity="0.55" stroke="${color}"
-          data-sphere="${esc(s.sphere)}" style="cursor:pointer"><title>${esc(tSphere(s.sphere))} — ${s.score}%</title></path>`;
+          data-sphere="${esc(s.name)}" style="cursor:pointer"><title>${esc(tSphere(s.name))} — ${s.score}%</title></path>`;
       }).join('');
 
       const labelsSvg = items.map((s, i) => {
         const a = -Math.PI / 2 + (i + 0.5) * sectorAngle;
-        const lr = 122;
+        const lr = N <= 4 ? 130 : 122;
         const x = Math.cos(a) * lr, y = Math.sin(a) * lr;
-        const label = tSphere(s.sphere);
+        const label = tSphere(s.name);
         const w = label.length * 7.5 + 16;
         const h = 18;
-        return `<g class="sphere-label" data-sphere="${esc(s.sphere)}" style="cursor:pointer">
+        return `<g class="sphere-label" data-sphere="${esc(s.name)}" style="cursor:pointer">
           <rect x="${x - w/2}" y="${y - h/2}" width="${w}" height="${h}" rx="9"
             fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
           <text x="${x}" y="${y}" dominant-baseline="middle" text-anchor="middle"
@@ -570,16 +591,15 @@
       </svg>`;
 
       ctrl.innerHTML = items.map(s => `
-        <div class="wheel-row" data-sphere="${esc(s.sphere)}" style="display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; font-size:13px; transition:background .15s">
-          <span style="width:8px; height:8px; border-radius:50%; background:${SPHERE_COLORS[s.sphere]}; flex-shrink:0"></span>
-          <span class="wheel-row-name" style="flex:1; cursor:pointer">${esc(tSphere(s.sphere))}</span>
-          <input type="number" min="0" max="100" step="1" value="${s.score}" data-score="${esc(s.sphere)}"
-            style="width:64px; padding:4px 8px; background:rgba(0,0,0,0.3); border:1px solid var(--border); color:var(--text); border-radius:6px; font:inherit; text-align:center"
+        <div class="wheel-row" data-sphere="${esc(s.name)}" style="display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; font-size:13px; transition:background .15s">
+          <span style="width:8px; height:8px; border-radius:50%; background:${s.color || '#7C5CFF'}; flex-shrink:0"></span>
+          <span class="wheel-row-name" style="flex:1; cursor:pointer">${esc(tSphere(s.name))}</span>
+          <input type="number" min="0" max="100" step="1" value="${s.score}" data-score="${esc(s.name)}"
+            style="width:64px; padding:4px 8px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:6px; font:inherit; text-align:center"
             title="${esc(t('dashboard.wheel_score_hint'))}"/>
         </div>
       `).join('');
 
-      // Клик по сектору SVG, по подписи SVG, по названию сферы — показывает задачи сферы
       wrap.querySelectorAll('[data-sphere]').forEach(el => {
         el.addEventListener('click', () => onSphereClick(el.dataset.sphere));
       });
@@ -590,19 +610,20 @@
         row.addEventListener('mouseleave', () => row.style.background = '');
       });
 
-      // Сохранение нового балла
+      // Сохранение нового балла в wheel_spheres
       ctrl.querySelectorAll('input[data-score]').forEach(inp => {
         inp.addEventListener('change', async () => {
-          const sphere = inp.dataset.score;
+          const name = inp.dataset.score;
           const score = Math.max(0, Math.min(100, Math.round(+inp.value || 0)));
           inp.value = score;
-          const { error } = await sb.from('wheel_scores').upsert(
-            { user_id: user.id, sphere, score, updated_at: new Date().toISOString() },
-            { onConflict: 'user_id,sphere' }
-          );
+          const { error } = await sb.from('wheel_spheres')
+            .update({ score, updated_at: new Date().toISOString() })
+            .eq('user_id', user.id).eq('name', name);
           if (error) return toast(t('dashboard.not_saved', { msg: error.message }), 'error');
-          // Перерисовываем колесо с новыми значениями
-          const updated = items.map(it => it.sphere === sphere ? { ...it, score } : it);
+          // Локально обновляем — без перерисовки SVG (визуально score меняется только при следующем render)
+          const obj = userSpheres.find(x => x.name === name);
+          if (obj) obj.score = score;
+          const updated = items.map(it => it.name === name ? { ...it, score } : it);
           renderWheelSVG(updated, onSphereClick);
         });
       });
@@ -625,7 +646,7 @@
         .order('status')
         .order('quadrant');
       const tasks = data || [];
-      const color = SPHERE_COLORS[sphere] || '#7C5CFF';
+      const color = getSphereColor(sphere);
       const open = tasks.filter(t => t.status !== 'done');
       const done = tasks.filter(t => t.status === 'done');
 
@@ -736,7 +757,7 @@
                 <label>${esc(t('dashboard.task_sphere'))}</label>
                 <select class="input" id="tf-sphere">
                   <option value="">—</option>
-                  ${SPHERES.map(s => `<option value="${s}" ${selSphere === s ? 'selected' : ''}>${esc(tSphere(s))}</option>`).join('')}
+                  ${userSpheres.map(s => `<option value="${esc(s.name)}" ${selSphere === s.name ? 'selected' : ''}>${esc(tSphere(s.name))}</option>`).join('')}
                 </select>
               </div>
               <div class="field">
@@ -809,6 +830,182 @@
       if (r.ok) { toast(t('auth.password_updated'), 'success'); e.target.reset(); }
       else toast(t('common.error_with_msg', { msg: r.error || '' }), 'error');
     });
+
+    // ---------- Менеджер сфер: добавлять / удалять / переименовывать / выбирать цвет / переставлять ----------
+    document.getElementById('wheel-edit-btn').addEventListener('click', () => openWheelManager());
+
+    function openWheelManager() {
+      // local working copy + tracking original names for renames
+      let working = userSpheres.map(s => ({
+        id: s.id,
+        original_name: s.name,
+        name: s.name,
+        color: s.color,
+        score: s.score,
+        sort_order: s.sort_order,
+        _new: false,
+        _deleted: false,
+      }));
+      if (!working.length) {
+        working = DEFAULT_SPHERES.map((s, i) => ({
+          id: null, original_name: null, name: s.name, color: s.color, score: 50, sort_order: i, _new: true, _deleted: false,
+        }));
+      }
+      const root = document.getElementById('modal-root');
+
+      function rerender() {
+        const visible = working.filter(s => !s._deleted);
+        const rows = visible.map((s, idx) => {
+          const realIdx = working.indexOf(s);
+          return `
+            <div class="wm-row" data-idx="${realIdx}">
+              <button class="wm-mv" data-up="${realIdx}" ${idx === 0 ? 'disabled' : ''} title="${esc(t('common.up'))}">↑</button>
+              <button class="wm-mv" data-down="${realIdx}" ${idx === visible.length - 1 ? 'disabled' : ''} title="${esc(t('common.down'))}">↓</button>
+              <input type="color" class="wm-color" data-c="${realIdx}" value="${esc(s.color)}" title="${esc(t('dashboard.wheel_color'))}"/>
+              <input type="text" class="input wm-name" data-n="${realIdx}" value="${esc(s.name)}" placeholder="${esc(t('dashboard.wheel_sphere_name'))}"/>
+              <button class="btn btn-sm btn-danger wm-del" data-del="${realIdx}" title="${esc(t('common.delete'))}">×</button>
+            </div>
+          `;
+        }).join('');
+        root.innerHTML = `
+          <div class="modal-bg">
+            <div class="modal" style="width:min(640px, 92vw)">
+              <h2 style="margin-top:0">${esc(t('dashboard.wheel_manage_title'))}</h2>
+              <p class="muted" style="margin-top:-8px">${esc(t('dashboard.wheel_manage_sub'))}</p>
+              <div class="wm-list">${rows || `<p class="muted">${esc(t('dashboard.wheel_manage_empty'))}</p>`}</div>
+              <div style="display:flex; gap:8px; margin-top:14px">
+                <button class="btn btn-sm" id="wm-add">${esc(t('dashboard.wheel_add_sphere'))}</button>
+                <button class="btn btn-sm btn-ghost" id="wm-reset">${esc(t('dashboard.wheel_reset_defaults'))}</button>
+              </div>
+              <div class="modal-foot">
+                <button class="btn btn-ghost" id="wm-cancel">${esc(t('common.cancel'))}</button>
+                <button class="btn btn-primary" id="wm-save">${esc(t('common.save'))}</button>
+              </div>
+            </div>
+          </div>
+        `;
+        // wire row events
+        root.querySelectorAll('.wm-name').forEach(inp => inp.addEventListener('input', () => {
+          working[+inp.dataset.n].name = inp.value;
+        }));
+        root.querySelectorAll('.wm-color').forEach(inp => inp.addEventListener('input', () => {
+          working[+inp.dataset.c].color = inp.value;
+        }));
+        root.querySelectorAll('.wm-del').forEach(b => b.addEventListener('click', () => {
+          const i = +b.dataset.del;
+          if (working[i]._new) working.splice(i, 1); else working[i]._deleted = true;
+          rerender();
+        }));
+        root.querySelectorAll('[data-up]').forEach(b => b.addEventListener('click', () => {
+          const i = +b.dataset.up;
+          const visible = working.filter(s => !s._deleted);
+          const vIdx = visible.indexOf(working[i]);
+          if (vIdx <= 0) return;
+          const prev = visible[vIdx - 1];
+          const prevReal = working.indexOf(prev);
+          [working[i], working[prevReal]] = [working[prevReal], working[i]];
+          rerender();
+        }));
+        root.querySelectorAll('[data-down]').forEach(b => b.addEventListener('click', () => {
+          const i = +b.dataset.down;
+          const visible = working.filter(s => !s._deleted);
+          const vIdx = visible.indexOf(working[i]);
+          if (vIdx >= visible.length - 1) return;
+          const next = visible[vIdx + 1];
+          const nextReal = working.indexOf(next);
+          [working[i], working[nextReal]] = [working[nextReal], working[i]];
+          rerender();
+        }));
+        document.getElementById('wm-add').onclick = () => {
+          const palette = ['#EF4444', '#22D3EE', '#10B981', '#EC4899', '#7C5CFF', '#F59E0B', '#06B6D4', '#8B5CF6', '#F97316', '#84CC16'];
+          working.push({
+            id: null, original_name: null,
+            name: '',
+            color: palette[working.filter(s => !s._deleted).length % palette.length],
+            score: 50, sort_order: working.length, _new: true, _deleted: false,
+          });
+          rerender();
+        };
+        document.getElementById('wm-reset').onclick = () => {
+          if (!confirm(t('dashboard.wheel_confirm_reset'))) return;
+          working = DEFAULT_SPHERES.map((s, i) => {
+            // если такая же существует — сохраняем id и score
+            const existing = userSpheres.find(x => x.name === s.name);
+            return {
+              id: existing?.id || null,
+              original_name: existing?.name || null,
+              name: s.name, color: s.color,
+              score: existing?.score ?? 50,
+              sort_order: i, _new: !existing, _deleted: false,
+            };
+          });
+          // помечаем удалёнными те, которых нет в дефолтах
+          for (const s of userSpheres) {
+            if (!DEFAULT_SPHERES.some(d => d.name === s.name)) {
+              working.push({ id: s.id, original_name: s.name, name: s.name, color: s.color, score: s.score, sort_order: 99, _new: false, _deleted: true });
+            }
+          }
+          rerender();
+        };
+        document.getElementById('wm-cancel').onclick = () => root.innerHTML = '';
+        document.getElementById('wm-save').onclick = saveWheelManager;
+        root.querySelector('.modal-bg').addEventListener('click', (e) => {
+          if (e.target.classList.contains('modal-bg')) root.innerHTML = '';
+        });
+      }
+
+      async function saveWheelManager() {
+        // валидация
+        const visible = working.filter(s => !s._deleted);
+        if (visible.length < 1) { toast(t('dashboard.wheel_min_one'), 'error'); return; }
+        if (visible.length > 12) { toast(t('dashboard.wheel_max_n'), 'error'); return; }
+        const names = visible.map(s => s.name.trim()).filter(Boolean);
+        if (names.length !== visible.length) { toast(t('dashboard.wheel_name_required'), 'error'); return; }
+        const dup = names.find((n, i) => names.indexOf(n) !== i);
+        if (dup) { toast(t('dashboard.wheel_name_unique', { name: dup }), 'error'); return; }
+
+        // финальная сортировка sort_order по визуальному порядку
+        let order = 0;
+        for (const s of working) {
+          if (!s._deleted) s.sort_order = order++;
+        }
+
+        const ops = [];
+        // 1. удаление
+        const toDelete = working.filter(s => s._deleted && !s._new && s.id);
+        if (toDelete.length) {
+          ops.push(sb.from('wheel_spheres').delete().in('id', toDelete.map(s => s.id)));
+        }
+        // 2. переименования: cascade в tasks.sphere
+        const renamed = working.filter(s => !s._deleted && !s._new && s.original_name && s.name.trim() !== s.original_name);
+        for (const s of renamed) {
+          ops.push(sb.from('tasks').update({ sphere: s.name.trim() })
+            .eq('user_id', user.id).eq('sphere', s.original_name));
+        }
+        // 3. upsert всех видимых
+        const upserts = visible.map(s => ({
+          ...(s.id ? { id: s.id } : {}),
+          user_id: user.id,
+          name: s.name.trim(),
+          color: s.color,
+          sort_order: s.sort_order,
+          score: s.score,
+          updated_at: new Date().toISOString(),
+        }));
+        ops.push(sb.from('wheel_spheres').upsert(upserts, { onConflict: 'user_id,name' }));
+
+        const results = await Promise.all(ops);
+        const err = results.find(r => r && r.error);
+        if (err) { toast(t('common.error_with_msg', { msg: err.error.message }), 'error'); return; }
+
+        toast(t('common.saved'), 'success');
+        document.getElementById('modal-root').innerHTML = '';
+        cachedGoals = null; // нет смысла, но не повредит
+        await loadOverviewData();
+      }
+
+      rerender();
+    }
 
     // Re-render dynamic content on language change
     document.addEventListener('langchange', () => {

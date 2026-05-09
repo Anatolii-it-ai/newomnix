@@ -2,11 +2,24 @@
 // 10 модулей. Все операции напрямую через supabase-js (window.sb).
 // Требует: supabase.js + auth.js загруженные ранее.
 
-const SPHERES = ['Здоровье', 'Работа', 'Деньги', 'Отношения', 'Развитие', 'Отдых', 'Творчество', 'Дух'];
-const SPHERE_COLORS = {
+// Сферы — по дефолту 8, но пользователь может переопределить через wheel_spheres
+let SPHERES = ['Здоровье', 'Работа', 'Деньги', 'Отношения', 'Развитие', 'Отдых', 'Творчество', 'Дух'];
+let SPHERE_COLORS = {
   'Здоровье': '#EF4444', 'Работа': '#22D3EE', 'Деньги': '#10B981', 'Отношения': '#EC4899',
   'Развитие': '#7C5CFF', 'Отдых': '#F59E0B', 'Творчество': '#06B6D4', 'Дух': '#8B5CF6',
 };
+// Подтягиваем пользовательские сферы — заменяет дефолтные при наличии
+async function refreshUserSpheres() {
+  const uid = await getUid();
+  if (!uid) return [];
+  const { data } = await sb.from('wheel_spheres').select('name, color, sort_order, score')
+    .eq('user_id', uid).order('sort_order');
+  if (data && data.length) {
+    SPHERES = data.map(s => s.name);
+    SPHERE_COLORS = Object.fromEntries(data.map(s => [s.name, s.color]));
+  }
+  return data || [];
+}
 const QUADRANT_COLORS = {
   1: '#EF4444', 2: '#10B981', 3: '#F59E0B', 4: '#6E6E80',
 };
@@ -40,13 +53,16 @@ function modalOpen(html) {
 }
 function modalClose() { document.getElementById('modal-root').innerHTML = ''; }
 
-// ----- Wheel: load + ensure 8 spheres -----
+// ----- Wheel: load из wheel_spheres -----
 async function loadWheel() {
-  const uid = await getUid();
-  const { data } = await sb.from('wheel_scores').select('sphere, score').eq('user_id', uid);
-  const map = Object.fromEntries((data || []).map(r => [r.sphere, r.score]));
-  const items = SPHERES.map(s => ({ sphere: s, score: map[s] ?? 50 }));
-  const avg = items.reduce((a, b) => a + b.score, 0) / items.length;
+  const data = await refreshUserSpheres();
+  let items;
+  if (data.length) {
+    items = data.map(s => ({ sphere: s.name, color: s.color, score: s.score }));
+  } else {
+    items = SPHERES.map(s => ({ sphere: s, color: SPHERE_COLORS[s], score: 50 }));
+  }
+  const avg = items.length ? items.reduce((a, b) => a + b.score, 0) / items.length : 0;
   return { items, avg: +avg.toFixed(1) };
 }
 

@@ -58,6 +58,39 @@ CREATE TABLE IF NOT EXISTS public.wheel_scores (
   PRIMARY KEY (user_id, sphere)
 );
 
+-- Кастомизируемое колесо баланса: имя, цвет, порядок, балл
+CREATE TABLE IF NOT EXISTS public.wheel_spheres (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#7C5CFF',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  score SMALLINT NOT NULL DEFAULT 50 CHECK (score BETWEEN 0 AND 100),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_wheel_spheres_user ON public.wheel_spheres(user_id, sort_order);
+
+-- Миграция: переносим существующие wheel_scores → wheel_spheres с дефолтными цветами/порядком
+DO $$
+DECLARE
+  default_colors JSONB := '{"Здоровье":"#EF4444","Работа":"#22D3EE","Деньги":"#10B981","Отношения":"#EC4899","Развитие":"#7C5CFF","Отдых":"#F59E0B","Творчество":"#06B6D4","Дух":"#8B5CF6"}'::JSONB;
+  default_order JSONB := '{"Здоровье":0,"Работа":1,"Деньги":2,"Отношения":3,"Развитие":4,"Отдых":5,"Творчество":6,"Дух":7}'::JSONB;
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='wheel_scores') THEN
+    INSERT INTO public.wheel_spheres (user_id, name, color, sort_order, score, updated_at)
+    SELECT
+      ws.user_id,
+      ws.sphere,
+      COALESCE(default_colors->>ws.sphere, '#7C5CFF'),
+      COALESCE((default_order->>ws.sphere)::int, 99),
+      ws.score,
+      ws.updated_at
+    FROM public.wheel_scores ws
+    ON CONFLICT (user_id, name) DO NOTHING;
+  END IF;
+END $$;
+
 -- Миграция со старой шкалы 1–10 на 0–100 (безопасна для повторного запуска).
 DO $$
 BEGIN
@@ -216,6 +249,7 @@ ALTER TABLE public.profiles       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tools          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_tools     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wheel_scores   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wheel_spheres  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.habits         ENABLE ROW LEVEL SECURITY;
@@ -255,7 +289,7 @@ DO $$
 DECLARE
   t TEXT;
   user_tables TEXT[] := ARRAY[
-    'wheel_scores', 'goals', 'tasks', 'habits',
+    'wheel_scores', 'wheel_spheres', 'goals', 'tasks', 'habits',
     'transactions', 'health_logs', 'reviews', 'journal', 'notifications'
   ];
 BEGIN
@@ -310,6 +344,20 @@ BEGIN
   ON CONFLICT DO NOTHING;
 
   -- Wheel of balance (50 baseline, шкала 0–100)
+  -- Seed defaults в новую таблицу wheel_spheres с цветами и порядком
+  IF NOT EXISTS (SELECT 1 FROM public.wheel_spheres WHERE user_id = NEW.id) THEN
+    INSERT INTO public.wheel_spheres (user_id, name, color, sort_order, score) VALUES
+      (NEW.id, 'Здоровье',   '#EF4444', 0, 50),
+      (NEW.id, 'Работа',     '#22D3EE', 1, 50),
+      (NEW.id, 'Деньги',     '#10B981', 2, 50),
+      (NEW.id, 'Отношения',  '#EC4899', 3, 50),
+      (NEW.id, 'Развитие',   '#7C5CFF', 4, 50),
+      (NEW.id, 'Отдых',      '#F59E0B', 5, 50),
+      (NEW.id, 'Творчество', '#06B6D4', 6, 50),
+      (NEW.id, 'Дух',        '#8B5CF6', 7, 50)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  -- Backward-compat: дублируем в старую wheel_scores (на случай если что-то ещё читает её)
   FOREACH sphere IN ARRAY spheres LOOP
     INSERT INTO public.wheel_scores (user_id, sphere, score)
     VALUES (NEW.id, sphere, 50)
