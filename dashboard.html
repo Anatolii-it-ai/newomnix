@@ -361,23 +361,86 @@
         const timeShort = t(`timeShort.${h.time_of_day || 'day'}`);
         return `
           <div class="today-row ${done ? 'done' : ''}">
-            <span class="today-check">${done ? '✓' : ''}</span>
+            <span class="today-check" role="checkbox" tabindex="0" aria-checked="${done}" data-toggle-habit="${h.id}" style="cursor:pointer">${done ? '✓' : ''}</span>
             <span class="today-icon">${esc(h.icon || '•')}</span>
             <span class="today-text">${esc(h.name)}</span>
             <span class="today-meta">${esc(timeShort)}</span>
           </div>
         `;
       }).join('');
-      const taskRows = todaysTasks.slice(0, 3).map(t => `
-        <div class="today-row">
-          <span class="today-check"></span>
-          <span class="today-icon">◇</span>
-          <span class="today-text">${esc(t.title)}</span>
-          <span class="today-meta">Q${t.quadrant}</span>
-        </div>
-      `).join('');
+      const taskRows = todaysTasks.slice(0, 3).map(tk => {
+        const isDone = tk.status === 'done';
+        return `
+          <div class="today-row ${isDone ? 'done' : ''}">
+            <span class="today-check" role="checkbox" tabindex="0" aria-checked="${isDone}" data-toggle-task="${tk.id}" style="cursor:pointer">${isDone ? '✓' : ''}</span>
+            <span class="today-icon">◇</span>
+            <span class="today-text">${esc(tk.title)}</span>
+            <span class="today-meta">Q${tk.quadrant}</span>
+          </div>
+        `;
+      }).join('');
       const todayHtml = habitRows + taskRows;
-      document.getElementById('ov-today').innerHTML = todayHtml || `<div class="today-empty">${t('dashboard.today_empty')}</div>`;
+      const todayEl = document.getElementById('ov-today');
+      todayEl.innerHTML = todayHtml || `<div class="today-empty">${t('dashboard.today_empty')}</div>`;
+
+      // Habit toggles
+      todayEl.querySelectorAll('[data-toggle-habit]').forEach(el => {
+        el.addEventListener('click', async () => {
+          const habitId = el.dataset.toggleHabit;
+          const wasDone = el.getAttribute('aria-checked') === 'true';
+          // оптимистично переключаем UI
+          const row = el.closest('.today-row');
+          row.classList.toggle('done', !wasDone);
+          el.textContent = wasDone ? '' : '✓';
+          el.setAttribute('aria-checked', String(!wasDone));
+          // запись в БД
+          if (wasDone) {
+            await sb.from('habit_logs').delete().eq('habit_id', habitId).eq('date', todayStr);
+          } else {
+            const { error } = await sb.from('habit_logs').insert({ habit_id: habitId, date: todayStr });
+            if (error) {
+              // откатываем при ошибке
+              row.classList.toggle('done', wasDone);
+              el.textContent = wasDone ? '✓' : '';
+              el.setAttribute('aria-checked', String(wasDone));
+              toast(t('common.error_with_msg', { msg: error.message }), 'error');
+              return;
+            }
+          }
+          // обновляем сводку и привычки на странице (стрик и пр.)
+          loadOverviewData();
+        });
+        el.addEventListener('keydown', (e) => {
+          if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); el.click(); }
+        });
+      });
+
+      // Task toggles
+      todayEl.querySelectorAll('[data-toggle-task]').forEach(el => {
+        el.addEventListener('click', async () => {
+          const taskId = el.dataset.toggleTask;
+          const wasDone = el.getAttribute('aria-checked') === 'true';
+          const newStatus = wasDone ? 'open' : 'done';
+          const patch = { status: newStatus, completed_at: newStatus === 'done' ? new Date().toISOString() : null };
+          // оптимистично
+          const row = el.closest('.today-row');
+          row.classList.toggle('done', !wasDone);
+          el.textContent = wasDone ? '' : '✓';
+          el.setAttribute('aria-checked', String(!wasDone));
+          const { error } = await sb.from('tasks').update(patch).eq('id', taskId);
+          if (error) {
+            row.classList.toggle('done', wasDone);
+            el.textContent = wasDone ? '✓' : '';
+            el.setAttribute('aria-checked', String(wasDone));
+            toast(t('common.error_with_msg', { msg: error.message }), 'error');
+            return;
+          }
+          loadOverviewData();
+        });
+        el.addEventListener('keydown', (e) => {
+          if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); el.click(); }
+        });
+      });
     }
 
     function toDateStr(d) {
