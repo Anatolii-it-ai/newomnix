@@ -495,10 +495,18 @@
       });
     }
 
+    let cachedGoals = null;
+    async function getGoalsForTasks() {
+      if (cachedGoals) return cachedGoals;
+      const { data } = await sb.from('goals').select('id, title').eq('user_id', user.id).order('created_at', { ascending: false });
+      cachedGoals = data || [];
+      return cachedGoals;
+    }
+
     async function openSphereTasks(sphere) {
       const { data } = await sb
         .from('tasks')
-        .select('id, title, status, due_date, quadrant')
+        .select('id, title, status, due_date, quadrant, sphere, goal_id, estimate_min')
         .eq('user_id', user.id)
         .eq('sphere', sphere)
         .order('status')
@@ -510,11 +518,13 @@
 
       const taskItem = (t) => `
         <li class="${t.status === 'done' ? 'done' : ''}">
+          <input type="checkbox" data-toggle="${t.id}" ${t.status === 'done' ? 'checked' : ''} style="margin:0; cursor:pointer; flex-shrink:0"/>
           <i style="background:${color}"></i>
-          <span style="flex:1">${esc(t.title)}</span>
-          <span class="muted" style="font-size:12px; margin-left:8px">
+          <span class="task-title" data-edit="${t.id}" style="flex:1; cursor:pointer">${esc(t.title)}</span>
+          <span class="muted" style="font-size:12px; flex-shrink:0">
             ${t.due_date ? ruShortDate(t.due_date) + ' · ' : ''}Q${t.quadrant}
           </span>
+          <button class="btn btn-sm btn-danger" data-del="${t.id}" title="Удалить" style="padding:4px 8px; flex-shrink:0">×</button>
         </li>
       `;
 
@@ -522,11 +532,12 @@
       root.innerHTML = `
         <div class="modal-bg">
           <div class="modal">
-            <h2 style="display:flex; align-items:center; gap:10px; margin-top:0">
-              <span style="width:12px; height:12px; border-radius:50%; background:${color}"></span>
-              ${esc(sphere)}
-            </h2>
-            <p class="muted" style="margin-top:-6px">Задачи, привязанные к этой сфере</p>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px">
+              <span style="width:12px; height:12px; border-radius:50%; background:${color}; flex-shrink:0"></span>
+              <h2 style="margin:0; flex:1">${esc(sphere)}</h2>
+              <button class="btn btn-primary btn-sm" id="sphere-add">+ Задача</button>
+            </div>
+            <p class="muted" style="margin-top:0">Задачи, привязанные к этой сфере</p>
             ${open.length ? `
               <h3 style="margin-top:18px; font-size:14px">Активные (${open.length})</h3>
               <ul class="mini-tasks">${open.map(taskItem).join('')}</ul>
@@ -535,9 +546,9 @@
               <h3 style="margin-top:16px; font-size:14px">Выполнены (${done.length})</h3>
               <ul class="mini-tasks">${done.map(taskItem).join('')}</ul>
             ` : ''}
-            ${!tasks.length ? `<p class="muted" style="margin-top:14px">По сфере «${esc(sphere)}» задач пока нет. Открой <a href="tool.html?slug=tasks">Задачи</a> и создай первую.</p>` : ''}
+            ${!tasks.length ? `<p class="muted" style="margin-top:14px">По сфере «${esc(sphere)}» задач пока нет. Нажми <strong>+ Задача</strong>, чтобы добавить первую.</p>` : ''}
             <div class="modal-foot">
-              <a class="btn btn-ghost" href="tool.html?slug=tasks">Открыть задачи</a>
+              <a class="btn btn-ghost" href="tool.html?slug=tasks">Открыть полный модуль</a>
               <button class="btn btn-primary" id="sphere-modal-close">Закрыть</button>
             </div>
           </div>
@@ -548,6 +559,134 @@
         if (e.target.classList.contains('modal-bg')) close();
       });
       document.getElementById('sphere-modal-close').addEventListener('click', close);
+
+      document.getElementById('sphere-add').addEventListener('click', () => {
+        openTaskForm(null, sphere, () => openSphereTasks(sphere));
+      });
+
+      // Клик на названии — редактирование
+      root.querySelectorAll('[data-edit]').forEach(el => {
+        el.addEventListener('click', () => {
+          const t = tasks.find(x => x.id == el.dataset.edit);
+          openTaskForm(t, sphere, () => openSphereTasks(sphere));
+        });
+      });
+
+      // Чек-бокс — переключение done/open
+      root.querySelectorAll('[data-toggle]').forEach(el => {
+        el.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const t = tasks.find(x => x.id == el.dataset.toggle);
+          const newStatus = t.status === 'done' ? 'open' : 'done';
+          const patch = { status: newStatus, completed_at: newStatus === 'done' ? new Date().toISOString() : null };
+          const { error } = await sb.from('tasks').update(patch).eq('id', t.id);
+          if (error) { toast('Ошибка: ' + error.message, 'error'); return; }
+          openSphereTasks(sphere);
+        });
+      });
+
+      // Удаление
+      root.querySelectorAll('[data-del]').forEach(el => {
+        el.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('Удалить задачу?')) return;
+          const { error } = await sb.from('tasks').delete().eq('id', el.dataset.del);
+          if (error) { toast('Ошибка: ' + error.message, 'error'); return; }
+          toast('Удалено', 'success');
+          openSphereTasks(sphere);
+        });
+      });
+    }
+
+    const QUADRANT_LABELS_FULL = {
+      1: 'Срочно · Важно',
+      2: 'Не срочно · Важно',
+      3: 'Срочно · Не важно',
+      4: 'Не срочно · Не важно',
+    };
+
+    async function openTaskForm(task, defaultSphere, onClose) {
+      const goals = await getGoalsForTasks();
+      const root = document.getElementById('modal-root');
+      const isEdit = !!task;
+      const selSphere = task?.sphere ?? defaultSphere ?? '';
+
+      root.innerHTML = `
+        <div class="modal-bg">
+          <div class="modal">
+            <h2 style="margin-top:0">${isEdit ? 'Изменить задачу' : 'Новая задача'}</h2>
+            <div class="field">
+              <label>Что нужно сделать</label>
+              <input class="input" id="tf-title" value="${task ? esc(task.title) : ''}" />
+            </div>
+            <div class="grid cols-2" style="gap:14px">
+              <div class="field">
+                <label>Квадрант</label>
+                <select class="input" id="tf-q">
+                  ${[1,2,3,4].map(q => `<option value="${q}" ${(task?.quadrant || 2) == q ? 'selected' : ''}>${QUADRANT_LABELS_FULL[q]}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>Сфера</label>
+                <select class="input" id="tf-sphere">
+                  <option value="">—</option>
+                  ${SPHERES.map(s => `<option ${selSphere === s ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>Цель</label>
+                <select class="input" id="tf-goal">
+                  <option value="">—</option>
+                  ${goals.map(g => `<option value="${g.id}" ${task?.goal_id == g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>Срок</label>
+                <input class="input" type="date" id="tf-due" value="${task?.due_date || ''}"/>
+              </div>
+              <div class="field">
+                <label>Оценка (минут)</label>
+                <input class="input" type="number" id="tf-est" value="${task?.estimate_min || ''}"/>
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-ghost" id="tf-cancel">Отмена</button>
+              <button class="btn btn-primary" id="tf-save">Сохранить</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const back = () => onClose ? onClose() : (root.innerHTML = '');
+      root.querySelector('.modal-bg').addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-bg')) back();
+      });
+      document.getElementById('tf-cancel').addEventListener('click', back);
+      document.getElementById('tf-title').focus();
+
+      document.getElementById('tf-save').addEventListener('click', async () => {
+        const goalIdRaw = document.getElementById('tf-goal').value;
+        const body = {
+          user_id: user.id,
+          title: document.getElementById('tf-title').value.trim(),
+          quadrant: +document.getElementById('tf-q').value,
+          sphere: document.getElementById('tf-sphere').value || null,
+          goal_id: goalIdRaw ? +goalIdRaw : null,
+          due_date: document.getElementById('tf-due').value || null,
+          estimate_min: +document.getElementById('tf-est').value || null,
+        };
+        if (!body.title) { toast('Укажи название', 'error'); return; }
+        let err;
+        if (isEdit) {
+          const { user_id, ...patch } = body;
+          ({ error: err } = await sb.from('tasks').update(patch).eq('id', task.id));
+        } else {
+          ({ error: err } = await sb.from('tasks').insert(body));
+        }
+        if (err) { toast('Ошибка: ' + err.message, 'error'); return; }
+        toast(isEdit ? 'Сохранено' : 'Задача создана', 'success');
+        back();
+      });
     }
 
     document.getElementById('profile-form').addEventListener('submit', async (e) => {
