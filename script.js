@@ -199,24 +199,41 @@ const SPHERES = [
     rafId = 0;
   }
 
+  let inView = true;
+  let scrolling = false;
+  let scrollT, resizeT;
+
   init();
   start();
 
-  // Пауза, когда вкладка свёрнута или canvas скроллом ушёл из вида.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop(); else start();
+    if (document.hidden) stop();
+    else if (!scrolling && inView) start();
   });
 
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver((entries) => {
-      const visible = entries.some(e => e.isIntersecting);
-      if (visible) start(); else stop();
+      inView = entries.some(e => e.isIntersecting);
+      if (inView && !scrolling && !document.hidden) start();
+      else stop();
     });
     io.observe(c);
   }
 
-  // Debounce resize, чтобы не пересоздавать массив частиц на каждый пиксель.
-  let resizeT;
+  // Главное: ставим canvas на паузу, пока пользователь активно скроллит.
+  // Иначе main-thread работа canvas-а конкурирует со скроллом → лаги.
+  window.addEventListener('scroll', () => {
+    if (!scrolling) {
+      scrolling = true;
+      stop();
+    }
+    clearTimeout(scrollT);
+    scrollT = setTimeout(() => {
+      scrolling = false;
+      if (inView && !document.hidden) start();
+    }, 180);
+  }, { passive: true });
+
   window.addEventListener('resize', () => {
     clearTimeout(resizeT);
     resizeT = setTimeout(() => init(), 150);
@@ -233,14 +250,17 @@ const SPHERES = [
     return;
   }
 
+  // rootMargin > 0 — начинаем готовить класс заранее, чтобы анимация не
+  // запускалась прямо в момент скролла. Без setTimeout-стаггера — он плодил
+  // одновременные transition-ы при быстром скролле и давал jank.
   const io = new IntersectionObserver((entries) => {
-    entries.forEach((e, i) => {
+    entries.forEach((e) => {
       if (e.isIntersecting) {
-        setTimeout(() => e.target.classList.add('is-visible'), i * 50);
+        e.target.classList.add('is-visible');
         io.unobserve(e.target);
       }
     });
-  }, { threshold: 0.12 });
+  }, { threshold: 0, rootMargin: '0px 0px -10% 0px' });
 
   targets.forEach(t => io.observe(t));
 })();
