@@ -1575,7 +1575,8 @@ window.OmnixTools = {
   ai: {
     title: 'AI-ассистент — твой проактивный слой',
     async render(c) {
-      const insights = await computeInsights();
+      let insights = { insights: [], brief: { top: [] }, recap: null };
+      try { insights = await computeInsights(); } catch (e) { console.error('insights', e); }
       const hour = new Date().getHours();
       const greetKey = hour < 12 ? 'ai.morning' : hour < 18 ? 'ai.day' : 'ai.evening';
 
@@ -1597,6 +1598,20 @@ window.OmnixTools = {
           ` : ''}
         </div>
 
+        <div class="card" id="ai-chat-card" style="margin-top:20px">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px">
+            <h2 style="margin:0">${esc(t('ai.chat_title'))}</h2>
+            <button class="btn btn-sm btn-ghost" id="ai-chat-clear" type="button">${esc(t('ai.chat_clear'))}</button>
+          </div>
+          <p class="muted" style="margin:0 0 14px; font-size:13px">${esc(t('ai.chat_sub'))}</p>
+          <div id="ai-chat-log" style="display:flex; flex-direction:column; gap:10px; max-height:440px; overflow-y:auto; padding:4px 2px 14px"></div>
+          <div style="display:flex; gap:8px; align-items:flex-end">
+            <textarea id="ai-chat-input" class="input" rows="2" style="resize:vertical; min-height:46px" placeholder="${esc(t('ai.chat_placeholder'))}"></textarea>
+            <button class="btn btn-primary" id="ai-chat-send" type="button" style="flex-shrink:0">${esc(t('ai.chat_send'))}</button>
+          </div>
+          <p class="muted" id="ai-chat-hint" style="margin:8px 0 0; font-size:12px"></p>
+        </div>
+
         <h2 style="margin-top:28px">${esc(t('ai.insights_title'))}</h2>
         <p class="muted">${esc(t('ai.insights_sub'))}</p>
         <div class="grid cols-2" style="margin-top:14px">
@@ -1608,6 +1623,8 @@ window.OmnixTools = {
           `).join('') : `<div class="tool-empty" style="grid-column:1/-1">${esc(t('ai.insights_empty'))}</div>`}
         </div>
       `;
+
+      initAiChat(insights);
     },
   },
 
@@ -1824,6 +1841,132 @@ async function computeInsights() {
 
   insights.sort((a, b) => a.priority - b.priority);
   return { insights, brief: { top: top || [] }, recap };
+}
+
+// =================== AI chat (Groq через /api/ai-chat) ===================
+
+const AI_CHAT_LS = 'omx-ai-chat';
+const AI_RATE_LS = 'omx-ai-rate';
+const AI_DAILY_LIMIT = 60;
+const AI_MAX_HISTORY = 30;   // сколько сообщений храним локально
+const AI_SEND_TAIL = 16;     // сколько последних шлём в модель
+
+function aiLoadHistory() {
+  try { const a = JSON.parse(localStorage.getItem(AI_CHAT_LS) || '[]'); return Array.isArray(a) ? a.slice(-AI_MAX_HISTORY) : []; } catch { return []; }
+}
+function aiSaveHistory(h) { try { localStorage.setItem(AI_CHAT_LS, JSON.stringify(h.slice(-AI_MAX_HISTORY))); } catch {} }
+function aiRateState() {
+  let s; try { s = JSON.parse(localStorage.getItem(AI_RATE_LS) || '{}'); } catch { s = {}; }
+  const day = new Date().toISOString().slice(0, 10);
+  if (!s || s.day !== day) s = { day, count: 0 };
+  return s;
+}
+function aiRateBump() { const s = aiRateState(); s.count = (s.count || 0) + 1; try { localStorage.setItem(AI_RATE_LS, JSON.stringify(s)); } catch {} return s.count; }
+
+function aiSystemPrompt(insights) {
+  const lang = (typeof getLang === 'function') ? getLang() : 'ru';
+  const langName = { ru: 'русском', ro: 'румынском', en: 'английском' }[lang] || 'русском';
+  const bits = [];
+  if (insights && insights.brief && (insights.brief.top || []).length) bits.push('Открытые задачи: ' + insights.brief.top.map(x => x.title).join('; '));
+  if (insights && (insights.insights || []).length) bits.push('Замечания системы: ' + insights.insights.map(i => i.text).join(' | '));
+  if (insights && insights.recap) bits.push(`Сегодня закрыто задач: ${insights.recap.todayDone}, привычек: ${insights.recap.habitsDone}/${insights.recap.habitsTotal}`);
+  const ctx = bits.length ? ('\n\nКонтекст пользователя (используй, если уместно):\n' + bits.join('\n')) : '';
+  return `Ты — AI-ассистент внутри OmnixOS, личной системы управления жизнью (цели, задачи, привычки, финансы, здоровье, дневник, колесо баланса). Помогай конкретно и по делу: планирование дня, приоритеты, разбивка целей на шаги, мотивация, короткие практичные советы. Отвечай на ${langName} языке. Без воды, без длинных вступлений.${ctx}`;
+}
+
+async function aiChatComplete(uiMessages, insights) {
+  let token = null;
+  try {
+    const { data } = await sb.auth.getSession();
+    token = data && data.session && data.session.access_token;
+  } catch {}
+  if (!token) return { error: 'unauthorized' };
+  const messages = [{ role: 'system', content: aiSystemPrompt(insights) }].concat(
+    uiMessages.slice(-AI_SEND_TAIL).map(m => ({ role: m.role, content: m.content }))
+  );
+  let r, data;
+  try {
+    r = await fetch('/api/ai-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ messages }),
+    });
+    data = await r.json().catch(() => ({}));
+  } catch (e) { return { error: 'network' }; }
+  if (r.status === 404) return { error: 'not_configured' };
+  if (!r.ok) return { error: (data && data.error) || 'generic' };
+  return { reply: String((data && data.reply) || '').trim() };
+}
+
+function initAiChat(insights) {
+  const log = document.getElementById('ai-chat-log');
+  const input = document.getElementById('ai-chat-input');
+  const sendBtn = document.getElementById('ai-chat-send');
+  const clearBtn = document.getElementById('ai-chat-clear');
+  const hintEl = document.getElementById('ai-chat-hint');
+  if (!log || !input || !sendBtn) return;
+
+  let history = aiLoadHistory();   // [{role:'user'|'assistant', content}]
+  let busy = false;
+
+  function bubble(role, content, muted) {
+    const me = role === 'user';
+    const el = document.createElement('div');
+    el.style.cssText = 'max-width:88%; padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; '
+      + (me
+        ? 'align-self:flex-end; background:var(--grad); color:#0B0B14; border-bottom-right-radius:4px;'
+        : 'align-self:flex-start; background:var(--surface-2); border:1px solid var(--border); border-bottom-left-radius:4px;');
+    if (muted) el.style.opacity = '0.7';
+    el.textContent = content;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+  function renderAll() {
+    log.innerHTML = '';
+    if (!history.length) bubble('assistant', t('ai.chat_hello'));
+    else history.forEach(m => bubble(m.role, m.content));
+  }
+  function updateHint() {
+    if (!hintEl) return;
+    const s = aiRateState();
+    hintEl.textContent = t('ai.chat_rate', { used: s.count || 0, limit: AI_DAILY_LIMIT });
+  }
+  renderAll();
+  updateHint();
+
+  async function doSend() {
+    if (busy) return;
+    const text = (input.value || '').trim();
+    if (!text) return;
+    if ((aiRateState().count || 0) >= AI_DAILY_LIMIT) { bubble('assistant', t('ai.chat_limit_day'), true); return; }
+    busy = true; sendBtn.disabled = true; input.disabled = true;
+    input.value = '';
+    history.push({ role: 'user', content: text }); aiSaveHistory(history); bubble('user', text);
+    const thinking = bubble('assistant', t('ai.chat_thinking'), true);
+    const res = await aiChatComplete(history, insights);
+    aiRateBump(); updateHint();
+    thinking.remove();
+    if (res.error) {
+      const map = {
+        not_configured: 'ai.err_not_configured', rate_limited: 'ai.err_rate_limited',
+        bad_key: 'ai.err_bad_key', unauthorized: 'ai.err_unauthorized',
+        network: 'ai.err_network', upstream_unreachable: 'ai.err_network', upstream_error: 'ai.err_generic',
+      };
+      bubble('assistant', t(map[res.error] || 'ai.err_generic'), true);
+    } else if (!res.reply) {
+      bubble('assistant', t('ai.err_empty'), true);
+    } else {
+      history.push({ role: 'assistant', content: res.reply }); aiSaveHistory(history); bubble('assistant', res.reply);
+    }
+    busy = false; sendBtn.disabled = false; input.disabled = false; input.focus();
+  }
+
+  sendBtn.addEventListener('click', doSend);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); doSend(); }
+  });
+  if (clearBtn) clearBtn.addEventListener('click', () => { history = []; aiSaveHistory(history); renderAll(); });
 }
 
 // =================== Wheel SVG (на дашборде) ===================
