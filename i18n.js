@@ -324,6 +324,7 @@ const TRANSLATIONS = {
       panel_title: 'AI-ассистент', fab_label: 'AI-ассистент',
       qp_plan_day: 'Спланируй мой день', qp_priorities: 'Что сейчас в приоритете?',
       qp_break_goal: 'Разбей цель на шаги', qp_motivate: 'Подбодри меня',
+      voice_input: 'Голосовое сообщение', voice_listening: 'Слушаю…', voice_tts: 'Озвучивать ответы AI', voice_denied: 'Нет доступа к микрофону',
     },
     gamification: {
       level_n: 'Уровень {n}',
@@ -808,6 +809,7 @@ const TRANSLATIONS = {
       panel_title: 'Asistent AI', fab_label: 'Asistent AI',
       qp_plan_day: 'Planifică-mi ziua', qp_priorities: 'Ce e prioritar acum?',
       qp_break_goal: 'Împarte obiectivul în pași', qp_motivate: 'Încurajează-mă',
+      voice_input: 'Mesaj vocal', voice_listening: 'Ascult…', voice_tts: 'Citește răspunsurile AI', voice_denied: 'Fără acces la microfon',
     },
     gamification: {
       level_n: 'Nivel {n}',
@@ -1292,6 +1294,7 @@ const TRANSLATIONS = {
       panel_title: 'AI assistant', fab_label: 'AI assistant',
       qp_plan_day: 'Plan my day', qp_priorities: 'What\'s the priority now?',
       qp_break_goal: 'Break a goal into steps', qp_motivate: 'Motivate me',
+      voice_input: 'Voice message', voice_listening: 'Listening…', voice_tts: 'Read AI replies aloud', voice_denied: 'No microphone access',
     },
     gamification: {
       level_n: 'Level {n}',

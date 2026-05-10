@@ -1965,19 +1965,60 @@ body.omx-ai-open #omx-ai-fab { opacity: 0; pointer-events: none; }
   flex-shrink: 0;
 }
 .ai-chat-input {
-  flex: 1; min-width: 0;
+  flex: 1 1 auto; min-width: 0;
+  width: auto;
+  box-sizing: border-box;
   resize: none;
-  max-height: 120px;
+  overflow-y: auto;
+  min-height: 40px;
+  max-height: 110px;
   line-height: 1.4;
-  padding: 10px 12px;
+  padding: 9px 12px;
 }
-.ai-chat-send { flex-shrink: 0; padding: 10px 16px; }
+.ai-chat-input::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* кнопки рядом с полем — иконки одинакового размера */
+.ai-chat-send, .ai-chat-mic {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  display: grid; place-items: center;
+}
+.ai-chat-mic {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.ai-chat-mic:hover { background: var(--surface-2); color: var(--text); }
+.ai-chat-mic.rec {
+  background: rgba(239,68,68,0.18);
+  border-color: var(--red);
+  color: #FCA5A5;
+  animation: omx-ai-rec 1.1s ease-in-out infinite;
+}
+@keyframes omx-ai-rec { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.45); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); } }
+.ai-chat-send svg, .ai-chat-mic svg { display: block; }
 .ai-chat-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 0 16px 12px;
+  padding: 6px 16px 12px;
   font-size: 11px; color: var(--text-mute);
   flex-shrink: 0;
 }
+.ai-chat-foot-r { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.ai-chat-speak {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  cursor: pointer; font-size: 13px;
+  display: grid; place-items: center;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.ai-chat-speak:hover { background: var(--surface-2); color: var(--text); }
+.ai-chat-speak.on { color: var(--text); border-color: var(--violet); }
 .ai-chat-clear {
   background: transparent; border: none;
   color: var(--text-dim); font-size: 11px;

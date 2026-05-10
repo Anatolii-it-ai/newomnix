@@ -21,7 +21,7 @@
   // ---------- i18n с фолбэком на русский ----------
   const FB = {
     'ai.panel_title': 'AI-ассистент', 'ai.fab_label': 'AI-ассистент', 'common.close': 'Закрыть',
-    'ai.chat_clear': 'Очистить', 'ai.chat_placeholder': 'Напиши сообщение… (Ctrl+Enter)', 'ai.chat_send': 'Отправить',
+    'ai.chat_clear': 'Очистить', 'ai.chat_placeholder': 'Напиши сообщение…', 'ai.chat_send': 'Отправить',
     'ai.chat_hello': 'Привет! Я ассистент в OmnixOS. Чем помочь — спланировать день, разбить цель на шаги, подсказать по привычкам?',
     'ai.chat_thinking': 'Думаю…',
     'ai.chat_rate': 'Использовано сегодня: {used} / {limit}', 'ai.chat_limit_day': 'Дневной лимит сообщений исчерпан. Попробуй завтра.',
@@ -34,6 +34,7 @@
     'ai.err_generic': 'Что-то пошло не так с AI. Попробуй ещё раз.',
     'ai.qp_plan_day': 'Спланируй мой день', 'ai.qp_priorities': 'Что сейчас в приоритете?',
     'ai.qp_break_goal': 'Разбей цель на шаги', 'ai.qp_motivate': 'Подбодри меня',
+    'ai.voice_input': 'Голосовое сообщение', 'ai.voice_listening': 'Слушаю…', 'ai.voice_tts': 'Озвучивать ответы AI', 'ai.voice_denied': 'Нет доступа к микрофону',
   };
   function tr(key, vars) {
     if (typeof window.t === 'function') { const v = window.t(key, vars); if (v && v !== key) return v; }
@@ -118,7 +119,29 @@
     return { reply: String((data && data.reply) || '').trim() };
   }
 
+  // ---------- голос: STT (распознавание) + TTS (озвучка) ----------
+  const SPEAK_LS = 'omx-ai-speak';
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const CAN_STT = !!SR;
+  const CAN_TTS = ('speechSynthesis' in window) && ('SpeechSynthesisUtterance' in window);
+  const langCode = () => ({ ru: 'ru-RU', ro: 'ro-RO', en: 'en-US' }[(typeof window.getLang === 'function') ? window.getLang() : 'ru'] || 'ru-RU');
+  function speakOn() { return CAN_TTS && (function () { try { return localStorage.getItem(SPEAK_LS) === '1'; } catch { return false; } })(); }
+  function ttsStop() { if (CAN_TTS) try { window.speechSynthesis.cancel(); } catch {} }
+  function ttsSpeak(text) {
+    if (!CAN_TTS || !text) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(String(text).slice(0, 600));
+      u.lang = langCode();
+      u.rate = 1.02;
+      window.speechSynthesis.speak(u);
+    } catch {}
+  }
+
   // ---------- рендер чата в произвольный контейнер ----------
+  const SEND_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>';
+  const MIC_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>';
+
   function renderChat(container) {
     if (!container) return null;
     container.innerHTML =
@@ -127,14 +150,19 @@
       + '<div class="ai-qp">' + QP_KEYS.map((k) => '<button class="ai-qp-chip" type="button" data-k="' + esc(k) + '">' + esc(tr(k)) + '</button>').join('') + '</div>'
       + '<div class="ai-chat-input-row">'
       + '<textarea class="ai-chat-input input" rows="1" placeholder="' + esc(tr('ai.chat_placeholder')) + '"></textarea>'
-      + '<button class="btn btn-primary ai-chat-send" type="button">' + esc(tr('ai.chat_send')) + '</button>'
+      + (CAN_STT ? '<button class="ai-chat-mic" type="button" title="' + esc(tr('ai.voice_input')) + '" aria-label="' + esc(tr('ai.voice_input')) + '">' + MIC_SVG + '</button>' : '')
+      + '<button class="btn btn-primary ai-chat-send" type="button" title="' + esc(tr('ai.chat_send')) + '" aria-label="' + esc(tr('ai.chat_send')) + '">' + SEND_SVG + '</button>'
       + '</div>'
-      + '<div class="ai-chat-foot"><span class="ai-chat-rate"></span><button class="ai-chat-clear" type="button">' + esc(tr('ai.chat_clear')) + '</button></div>'
+      + '<div class="ai-chat-foot"><span class="ai-chat-rate"></span><span class="ai-chat-foot-r">'
+      + (CAN_TTS ? '<button class="ai-chat-speak" type="button" title="' + esc(tr('ai.voice_tts')) + '" aria-label="' + esc(tr('ai.voice_tts')) + '"></button>' : '')
+      + '<button class="ai-chat-clear" type="button">' + esc(tr('ai.chat_clear')) + '</button></span></div>'
       + '</div>';
     const logEl = container.querySelector('.ai-chat-log');
     const qpEl = container.querySelector('.ai-qp');
     const inputEl = container.querySelector('.ai-chat-input');
     const sendEl = container.querySelector('.ai-chat-send');
+    const micEl = container.querySelector('.ai-chat-mic');
+    const speakEl = container.querySelector('.ai-chat-speak');
     const clearEl = container.querySelector('.ai-chat-clear');
     const rateEl = container.querySelector('.ai-chat-rate');
 
@@ -152,8 +180,8 @@
     }
     function renderLog() { logEl.innerHTML = ''; if (!history.length) bubble('assistant', tr('ai.chat_hello')); else history.forEach((m) => bubble(m.role, m.content)); }
     function renderRate() { const s = rateState(); rateEl.textContent = tr('ai.chat_rate', { used: s.count || 0, limit: DAILY_LIMIT }); }
-    function autoGrow() { inputEl.style.height = 'auto'; inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px'; }
-    renderLog(); renderRate();
+    function autoGrow() { inputEl.style.height = 'auto'; inputEl.style.height = Math.min(Math.max(inputEl.scrollHeight, 22), 110) + 'px'; }
+    renderLog(); renderRate(); autoGrow();
 
     async function send(text) {
       text = (text || '').trim();
@@ -167,16 +195,55 @@
       think.remove();
       if (res.error) bubble('assistant', tr(ERR_KEY[res.error] || 'ai.err_generic'), true);
       else if (!res.reply) bubble('assistant', tr('ai.err_empty'), true);
-      else { history.push({ role: 'assistant', content: res.reply }); saveHistory(history); bubble('assistant', res.reply); }
+      else { history.push({ role: 'assistant', content: res.reply }); saveHistory(history); bubble('assistant', res.reply); if (speakOn()) ttsSpeak(res.reply); }
       busy = false; sendEl.disabled = false; inputEl.disabled = false; try { inputEl.focus(); } catch {}
     }
     function sendFromInput() { const v = inputEl.value; inputEl.value = ''; autoGrow(); send(v); }
 
     sendEl.addEventListener('click', sendFromInput);
-    inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendFromInput(); } });
+    inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFromInput(); } });
     inputEl.addEventListener('input', autoGrow);
     qpEl.addEventListener('click', (e) => { const b = e.target.closest('.ai-qp-chip'); if (b && !busy) send(tr(b.dataset.k)); });
-    clearEl.addEventListener('click', () => { history = []; saveHistory(history); renderLog(); });
+    clearEl.addEventListener('click', () => { ttsStop(); history = []; saveHistory(history); renderLog(); });
+
+    // --- озвучка ответов (TTS) ---
+    if (speakEl) {
+      function paintSpeak() { const on = speakOn(); speakEl.textContent = on ? '🔊' : '🔈'; speakEl.classList.toggle('on', on); }
+      paintSpeak();
+      speakEl.addEventListener('click', () => {
+        const next = !speakOn();
+        try { localStorage.setItem(SPEAK_LS, next ? '1' : '0'); } catch {}
+        if (next) { try { window.speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch {} } // «разблокировка» TTS на iOS жестом
+        else ttsStop();
+        paintSpeak();
+      });
+    }
+
+    // --- голосовой ввод (STT) ---
+    if (micEl && CAN_STT) {
+      let recog = null, recording = false;
+      function stopVisual() { recording = false; micEl.classList.remove('rec'); inputEl.placeholder = tr('ai.chat_placeholder'); }
+      micEl.addEventListener('click', () => {
+        if (recording) { try { recog && recog.stop(); } catch {} return; }
+        try {
+          recog = new SR();
+          recog.lang = langCode();
+          recog.interimResults = true;
+          recog.maxAlternatives = 1;
+          let finalT = '';
+          recog.onstart = () => { recording = true; micEl.classList.add('rec'); inputEl.placeholder = tr('ai.voice_listening'); ttsStop(); };
+          recog.onresult = (e) => {
+            finalT = ''; let interim = '';
+            for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) finalT += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
+            inputEl.value = (finalT + ' ' + interim).trim();
+            autoGrow();
+          };
+          recog.onerror = (e) => { stopVisual(); if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed') && typeof window.toast === 'function') window.toast(tr('ai.voice_denied'), 'error'); };
+          recog.onend = () => { stopVisual(); const v = (inputEl.value || '').trim(); if (v) { inputEl.value = ''; autoGrow(); send(v); } };
+          recog.start();
+        } catch { stopVisual(); }
+      });
+    }
 
     return { reload() { history = loadHistory(); renderLog(); renderRate(); } };
   }
