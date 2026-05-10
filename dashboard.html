@@ -218,6 +218,35 @@
           </div>
         </div>
 
+        <div class="card" style="margin-top:24px">
+          <h2 style="margin-top:0" data-i18n="notif.settings_title">Напоминания</h2>
+          <p class="muted" data-i18n="notif.settings_sub" style="margin-top:-4px">Браузерные напоминания о невыполненных привычках. Работают, пока открыта вкладка приложения.</p>
+          <label class="checkbox" for="notif-enabled" style="margin:6px 0 8px">
+            <input type="checkbox" id="notif-enabled" />
+            <span data-i18n="notif.enable_label">Напоминать о невыполненных привычках</span>
+          </label>
+          <p class="muted" id="notif-status" style="margin:0 0 12px; font-size:12px">…</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px">
+            <button type="button" class="btn btn-sm" id="notif-permission-btn" data-i18n="notif.allow_btn">Разрешить уведомления</button>
+            <button type="button" class="btn btn-sm btn-ghost" id="notif-test-btn" data-i18n="notif.test_btn">Проверить</button>
+          </div>
+
+          <h3 data-i18n="notif.times_title" style="margin:0 0 4px">Время напоминаний</h3>
+          <p class="muted" data-i18n="notif.times_sub" style="margin:0 0 12px; font-size:12px">Когда напоминать про привычки утра, дня и вечера</p>
+          <div class="grid cols-3" style="gap:12px">
+            <div class="field" style="margin:0"><label for="notif-time-morning" data-i18n="notif.bucket_morning">Утро</label><input type="time" id="notif-time-morning" /></div>
+            <div class="field" style="margin:0"><label for="notif-time-day" data-i18n="notif.bucket_day">День</label><input type="time" id="notif-time-day" /></div>
+            <div class="field" style="margin:0"><label for="notif-time-evening" data-i18n="notif.bucket_evening">Вечер</label><input type="time" id="notif-time-evening" /></div>
+          </div>
+
+          <h3 data-i18n="notif.quiet_title" style="margin:18px 0 4px">Тихие часы</h3>
+          <p class="muted" data-i18n="notif.quiet_sub" style="margin:0 0 12px; font-size:12px">В этот промежуток уведомления не приходят</p>
+          <div class="grid cols-2" style="gap:12px; max-width:340px">
+            <div class="field" style="margin:0"><label for="notif-quiet-from" data-i18n="notif.quiet_from">С</label><input type="time" id="notif-quiet-from" /></div>
+            <div class="field" style="margin:0"><label for="notif-quiet-to" data-i18n="notif.quiet_to">До</label><input type="time" id="notif-quiet-to" /></div>
+          </div>
+        </div>
+
         <div class="card" style="margin-top:24px; border-color: rgba(239,68,68,0.3)">
           <h2 style="color: var(--red); margin-top:0" data-i18n="common.danger_zone">Опасная зона</h2>
           <p class="muted" data-i18n="common.danger_account_warn">Удаление аккаунта необратимо. Все данные (задачи, привычки, дневник, финансы) будут стёрты.</p>
@@ -244,9 +273,10 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=1"></script>
-  <script src="i18n.js?v=3"></script>
+  <script src="i18n.js?v=4"></script>
   <script src="auth.js?v=5"></script>
   <script src="palette.js?v=1"></script>
+  <script src="notifications.js?v=1"></script>
   <script>
   (async () => {
     // Помощник: вешаем обработчик только если элемент есть
@@ -580,6 +610,7 @@
       document.getElementById('pf-email').value = user.email;
       const p = await omxGetProfile();
       document.getElementById('pf-name').value = p?.name || '';
+      if (typeof omxNotif !== 'undefined' && omxNotif.bindSettingsUI) omxNotif.bindSettingsUI();
     }
 
     async function loadSubscription() {
@@ -1127,6 +1158,7 @@
       loadOverviewData();
       loadTools();
       loadWidgets();
+      if (activeTab === 'profile' && typeof omxNotif !== 'undefined' && omxNotif.bindSettingsUI) omxNotif.bindSettingsUI();
       const tabTitles = t('dashboard.tab_titles') || {};
       document.getElementById('page-title').textContent = tabTitles[activeTab] || activeTab;
     });
