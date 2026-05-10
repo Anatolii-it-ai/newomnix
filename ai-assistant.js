@@ -34,7 +34,7 @@
     'ai.err_generic': 'Что-то пошло не так с AI. Попробуй ещё раз.',
     'ai.qp_plan_day': 'Спланируй мой день', 'ai.qp_priorities': 'Что сейчас в приоритете?',
     'ai.qp_break_goal': 'Разбей цель на шаги', 'ai.qp_motivate': 'Подбодри меня',
-    'ai.voice_input': 'Голосовое сообщение', 'ai.voice_listening': 'Слушаю…', 'ai.voice_tts': 'Озвучивать ответы AI', 'ai.voice_denied': 'Нет доступа к микрофону',
+    'ai.voice_input': 'Голосовое сообщение', 'ai.voice_listening': 'Слушаю…', 'ai.voice_tts': 'Озвучивать ответы AI', 'ai.voice_denied': 'Разреши доступ к микрофону в браузере',
   };
   function tr(key, vars) {
     if (typeof window.t === 'function') { const v = window.t(key, vars); if (v && v !== key) return v; }
