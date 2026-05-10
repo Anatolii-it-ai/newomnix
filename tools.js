@@ -1726,11 +1726,11 @@ async function computeInsights() {
 
   // 1. Habits with broken streak (3+ days no log)
   const habits = await loadHabitsWithLogs();
-  const t = todayStr();
+  const today = todayStr();
   for (const h of habits) {
     const last = h.logs.length ? h.logs[h.logs.length - 1] : null;
     if (!last) continue;
-    const daysSince = Math.floor((new Date(t).getTime() - new Date(last).getTime()) / 86400000);
+    const daysSince = Math.floor((new Date(today).getTime() - new Date(last).getTime()) / 86400000);
     if (daysSince >= 3) {
       insights.push({
         kind: 'habit_streak',
@@ -1770,7 +1770,7 @@ async function computeInsights() {
   }
 
   // 4. Budget over-spent
-  const month = t.slice(0, 7);
+  const month = today.slice(0, 7);
   const monthStart = month + '-01';
   const since90 = daysAgo(90);
   const [curRes, last90Res] = await Promise.all([
@@ -1812,7 +1812,7 @@ async function computeInsights() {
       sb.from('tasks').select('id', { count: 'exact', head: true })
         .eq('user_id', uid).gte('completed_at', since12),
       // habit_logs за сегодня для привычек юзера
-      sb.from('habit_logs').select('habit_id').eq('date', t)
+      sb.from('habit_logs').select('habit_id').eq('date', today)
         .in('habit_id', habits.map(h => h.id).length ? habits.map(h => h.id) : [-1]),
     ]);
     recap = {
