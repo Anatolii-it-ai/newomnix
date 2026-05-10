@@ -801,6 +801,15 @@ button { font-family: inherit; cursor: pointer; }
   .w-progress-row .label { width: 90px; font-size: 11px; }
   .w-bars { height: 60px; }
 }
+/* Виджеты обзора: на узких экранах — по одному в столбик, чтобы графики не сжимались/не вылазили */
+@media (max-width: 640px) {
+  .ov-widgets { grid-template-columns: 1fr !important; }
+  .widget-card { min-height: 0; }
+  .w-streak-num { font-size: 40px; margin: 12px 0 4px; }
+  .w-progress-row { gap: 10px; }
+  .w-progress-row .label { width: 84px; }
+  .w-progress-row .val { min-width: 42px; }
+}
 
 /* ============= Skeleton loaders ============= */
 .skeleton {
