@@ -297,9 +297,9 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ===== Cards/grid ===== */
 .grid { display: grid; gap: 20px; }
-.grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-.grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-.grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+.grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+.grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); }
 
 .card {
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
@@ -721,7 +721,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .badges-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
   gap: 14px;
   margin-top: 14px;
 }
@@ -1767,4 +1767,45 @@ body.menu-open .menu-backdrop {
   .stat-rich-value { font-size: 28px; }
   .wheel-mini-row { grid-template-columns: 90px 1fr 26px; gap: 10px; }
   .wheel-mini-name { font-size: 12px; }
+}
+
+/* ============= Мобильный «защитный пояс»: ничего не выходит за рамки ============= */
+@media (max-width: 880px) {
+  /* Длинные слова, ссылки, e-mail переносятся, а не растягивают контейнер */
+  h1, h2, h3, h4, p, li, dd, dt,
+  .notif, .notif strong, .tool-card h4, .tool-card p,
+  .goal-mini, .insight p, .rev-block p, .day-task-title, .today-text,
+  .mini-tasks li, .matrix-task, .cp-item .cp-title, .side-link,
+  .cal-task-chip, .hero-meta-text, .hero-name, .stat-rich-foot,
+  .wheel-row-name, .wm-name, .badge-card strong {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* …но не ломаем переносами числа/даты в таблицах */
+  .table th, .table td { overflow-wrap: normal; word-break: normal; }
+
+  /* Карточки / модалки / секции — строго в пределах экрана */
+  .card, .modal, .auth-card, .hero-greeting, .day-view, .stat-rich,
+  .matrix-cell, .tool-card, .widget-card, .tab-panel, .tab-panel > * {
+    max-width: 100%;
+  }
+
+  /* Скелетоны-плейсхолдеры с фиксированной inline-шириной */
+  .skeleton { max-width: 100%; }
+
+  /* «Шапка карточки» (заголовок + кнопка справа), свёрстанная inline-флексом — переносить */
+  .card > div[style*="space-between"] { flex-wrap: wrap; row-gap: 8px; }
+  .card > div[style*="space-between"] > h2 { min-width: 0; }
+
+  /* Колесо баланса: SVG-метки не вылезают за карточку */
+  #ov-wheel-svg { overflow: hidden; }
+  #ov-wheel-svg svg { max-width: 100% !important; }
+  .wheel-row { gap: 8px !important; }
+  .wheel-row-name { min-width: 0; }
+
+  /* Поля ввода в inline-вёрстке не толкают строку наружу */
+  .card input, .card select, .card textarea { max-width: 100%; }
+
+  /* Любые grid-сетки гарантированно умещаются по ширине */
+  .grid, .grid > *, .badges-grid, .modules-grid, .wheel-mini-grid { min-width: 0; }
 }

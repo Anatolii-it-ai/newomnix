@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <script>(function(){var t=localStorage.getItem('omx-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=16" />
+  <link rel="stylesheet" href="app.css?v=17" />
   <style>
     .sphere-label rect {
       transition: fill .15s ease, stroke .15s ease;
@@ -99,7 +99,7 @@
             </div>
             <p class="muted" style="margin: 6px 0 14px" data-i18n="dashboard.wheel_subtitle">Нажми на сферу, чтобы увидеть задачи по ней</p>
             <div id="ov-wheel" class="wheel-mini-grid">
-              <div id="ov-wheel-svg" style="overflow:visible"></div>
+              <div id="ov-wheel-svg"></div>
               <div id="ov-wheel-list"></div>
             </div>
           </div>
@@ -649,7 +649,7 @@
         </g>`;
       }).join('');
 
-      wrap.innerHTML = `<svg viewBox="-170 -140 340 280" style="width:100%; max-width:380px; overflow:visible">
+      wrap.innerHTML = `<svg viewBox="-200 -150 400 300" style="width:100%; max-width:380px; display:block; margin:0 auto">
         <g class="wheel-grid" stroke="rgba(255,255,255,0.08)" fill="none">
           <circle r="100"/><circle r="80"/><circle r="60"/><circle r="40"/><circle r="20"/>
         </g>

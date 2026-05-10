@@ -1836,7 +1836,7 @@ async function renderWheelSVG(items) {
   const sectorAngle = (Math.PI * 2) / N;
   const maxR = 100;
 
-  wrap.innerHTML = `<svg viewBox="-130 -130 260 260" style="width:100%; max-width:340px; overflow:visible">
+  wrap.innerHTML = `<svg viewBox="-150 -145 300 290" style="width:100%; max-width:340px; display:block; margin:0 auto">
     <g class="wheel-grid" stroke="rgba(255,255,255,0.08)" fill="none">
       <circle r="100"/><circle r="80"/><circle r="60"/><circle r="40"/><circle r="20"/>
     </g>
