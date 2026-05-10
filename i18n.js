@@ -172,7 +172,7 @@ const TRANSLATIONS = {
       health:       { title: 'Здоровье — тело и энергия',                   name: 'Здоровье',      desc: 'Сон, вода, шаги, настроение, паттерны' },
       reviews:      { title: 'Обзоры — еженедельный ритуал',                name: 'Обзоры',        desc: 'Еженедельная и месячная ретроспектива' },
       journal:      { title: 'Дневник — мысли и идеи',                      name: 'Дневник',       desc: 'Заметки, благодарности, идеи' },
-      ai:           { title: 'AI-ассистент — твой проактивный слой',        name: 'AI-ассистент',  desc: 'Проактивные напоминания и инсайты' },
+      ai:           { title: 'AI-ассистент',                                 name: 'AI-ассистент',  desc: 'Чат с AI и проактивные подсказки' },
       gamification: { title: 'Геймификация — очки и уровни',                name: 'Геймификация',  desc: 'Очки, уровни, личный аватар' },
     },
     tool: {
@@ -321,6 +321,9 @@ const TRANSLATIONS = {
       err_network: 'Не удалось связаться с AI. Проверь интернет и попробуй ещё раз.',
       err_empty: 'AI вернул пустой ответ — попробуй переформулировать.',
       err_generic: 'Что-то пошло не так с AI. Попробуй ещё раз.',
+      panel_title: 'AI-ассистент', fab_label: 'AI-ассистент',
+      qp_plan_day: 'Спланируй мой день', qp_priorities: 'Что сейчас в приоритете?',
+      qp_break_goal: 'Разбей цель на шаги', qp_motivate: 'Подбодри меня',
     },
     gamification: {
       level_n: 'Уровень {n}',
@@ -653,7 +656,7 @@ const TRANSLATIONS = {
       health:       { title: 'Sănătate — corp și energie',         name: 'Sănătate',       desc: 'Somn, apă, pași, dispoziție, pattern-uri' },
       reviews:      { title: 'Recenzii — ritual săptămânal',       name: 'Recenzii',       desc: 'Retrospectivă săptămânală și lunară' },
       journal:      { title: 'Jurnal — gânduri și idei',           name: 'Jurnal',         desc: 'Notițe, recunoștință, idei' },
-      ai:           { title: 'Asistent AI — stratul tău proactiv', name: 'Asistent AI',    desc: 'Memento proactive și insight-uri' },
+      ai:           { title: 'Asistent AI',                       name: 'Asistent AI',    desc: 'Chat cu AI și sugestii proactive' },
       gamification: { title: 'Gamificare — puncte și niveluri',    name: 'Gamificare',     desc: 'Puncte, niveluri, avatar personal' },
     },
     tool: {
@@ -802,6 +805,9 @@ const TRANSLATIONS = {
       err_network: 'Nu s-a putut contacta AI. Verifică internetul și încearcă din nou.',
       err_empty: 'AI a returnat un răspuns gol — reformulează, te rog.',
       err_generic: 'Ceva n-a mers cu AI. Încearcă din nou.',
+      panel_title: 'Asistent AI', fab_label: 'Asistent AI',
+      qp_plan_day: 'Planifică-mi ziua', qp_priorities: 'Ce e prioritar acum?',
+      qp_break_goal: 'Împarte obiectivul în pași', qp_motivate: 'Încurajează-mă',
     },
     gamification: {
       level_n: 'Nivel {n}',
@@ -1134,7 +1140,7 @@ const TRANSLATIONS = {
       health:       { title: 'Health — body and energy',               name: 'Health',        desc: 'Sleep, water, steps, mood, patterns' },
       reviews:      { title: 'Reviews — weekly ritual',                name: 'Reviews',       desc: 'Weekly and monthly retrospective' },
       journal:      { title: 'Journal — thoughts and ideas',           name: 'Journal',       desc: 'Notes, gratitude, ideas' },
-      ai:           { title: 'AI assistant — your proactive layer',    name: 'AI assistant',  desc: 'Proactive reminders and insights' },
+      ai:           { title: 'AI assistant',                          name: 'AI assistant',  desc: 'AI chat and proactive hints' },
       gamification: { title: 'Gamification — points and levels',       name: 'Gamification',  desc: 'Points, levels, personal avatar' },
     },
     tool: {
@@ -1283,6 +1289,9 @@ const TRANSLATIONS = {
       err_network: 'Could not reach the AI. Check your connection and try again.',
       err_empty: 'The AI returned an empty reply — try rephrasing.',
       err_generic: 'Something went wrong with the AI. Please try again.',
+      panel_title: 'AI assistant', fab_label: 'AI assistant',
+      qp_plan_day: 'Plan my day', qp_priorities: 'What\'s the priority now?',
+      qp_break_goal: 'Break a goal into steps', qp_motivate: 'Motivate me',
     },
     gamification: {
       level_n: 'Level {n}',

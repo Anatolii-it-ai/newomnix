@@ -1818,3 +1818,179 @@ body.menu-open .menu-backdrop {
   /* Любые grid-сетки гарантированно умещаются по ширине */
   .grid, .grid > *, .badges-grid, .modules-grid, .wheel-mini-grid { min-width: 0; }
 }
+
+/* ============= AI-ассистент: плавающая кнопка (FAB) + панель чата ============= */
+#omx-ai-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 54px; height: 54px;
+  border: none;
+  border-radius: 50%;
+  background: var(--grad);
+  color: #0B0B14;
+  display: grid; place-items: center;
+  font-size: 24px; font-weight: 800;
+  cursor: pointer;
+  z-index: 80;
+  box-shadow: 0 8px 28px rgba(124,92,255,0.45), 0 2px 8px rgba(0,0,0,0.4);
+  transition: transform .18s ease, box-shadow .18s ease, opacity .2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+#omx-ai-fab::before {
+  content: '';
+  position: absolute; inset: -5px;
+  border-radius: 50%;
+  border: 2px solid rgba(124,92,255,0.55);
+  animation: omx-ai-pulse 2.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes omx-ai-pulse {
+  0%   { transform: scale(0.82); opacity: 0.8; }
+  70%  { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+#omx-ai-fab:hover { transform: translateY(-2px) scale(1.06); box-shadow: 0 12px 34px rgba(124,92,255,0.55), 0 2px 8px rgba(0,0,0,0.4); }
+#omx-ai-fab:active { transform: scale(0.93); }
+.omx-ai-fab-icon { line-height: 1; filter: drop-shadow(0 1px 1px rgba(255,255,255,0.35)); }
+@media (hover: none) { #omx-ai-fab:hover { transform: none; } }
+@media (max-width: 480px) {
+  #omx-ai-fab { width: 50px; height: 50px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 22px; }
+  #omx-ai-fab::before { animation: none; } /* меньше шума на мобиле */
+}
+body.omx-ai-open #omx-ai-fab { opacity: 0; pointer-events: none; }
+
+#omx-ai-panel {
+  position: fixed;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: min(380px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 110px));
+  max-height: calc(100vh - 24px);
+  background: rgba(11,11,20,0.97);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  z-index: 95;
+  opacity: 0;
+  transform: translateY(16px) scale(0.98);
+  transition: transform .22s cubic-bezier(.2,.7,.2,1), opacity .22s ease;
+}
+[data-theme="light"] #omx-ai-panel { background: #FFFFFF; }
+#omx-ai-panel.open { opacity: 1; transform: translateY(0) scale(1); }
+#omx-ai-panel[hidden] { display: none; }
+.omx-ai-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.omx-ai-panel-title { font-weight: 800; font-size: 15px; }
+.omx-ai-panel-close {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  color: var(--text); cursor: pointer; font-size: 14px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.omx-ai-panel-close:hover { background: var(--surface-2); }
+.omx-ai-panel-body { flex: 1; min-height: 0; display: flex; }
+@media (max-width: 560px) {
+  #omx-ai-panel {
+    right: 0; left: 0; bottom: 0; top: auto;
+    width: 100%;
+    height: 86vh; max-height: 86vh;
+    border-radius: 18px 18px 0 0;
+    transform: translateY(100%);
+  }
+  #omx-ai-panel.open { transform: translateY(0); }
+}
+
+/* ----- сам чат (используется и в панели, и встроенным в инструмент «AI») ----- */
+.ai-chat { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; width: 100%; }
+.ai-chat-log {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.ai-bubble {
+  max-width: 86%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 14px; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+}
+.ai-bubble-me {
+  align-self: flex-end;
+  background: var(--grad); color: #0B0B14;
+  border-bottom-right-radius: 4px;
+}
+.ai-bubble-ai {
+  align-self: flex-start;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+.ai-bubble-muted { opacity: 0.7; }
+.ai-qp {
+  display: flex; gap: 8px;
+  padding: 0 16px 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.ai-qp::-webkit-scrollbar { display: none; }
+.ai-qp-chip {
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.ai-qp-chip:hover { background: var(--surface-2); color: var(--text); border-color: var(--violet); }
+.ai-chat-input-row {
+  display: flex; gap: 8px; align-items: flex-end;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ai-chat-input {
+  flex: 1; min-width: 0;
+  resize: none;
+  max-height: 120px;
+  line-height: 1.4;
+  padding: 10px 12px;
+}
+.ai-chat-send { flex-shrink: 0; padding: 10px 16px; }
+.ai-chat-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 0 16px 12px;
+  font-size: 11px; color: var(--text-mute);
+  flex-shrink: 0;
+}
+.ai-chat-clear {
+  background: transparent; border: none;
+  color: var(--text-dim); font-size: 11px;
+  cursor: pointer; text-decoration: underline;
+  flex-shrink: 0;
+}
+.ai-chat-clear:hover { color: var(--text); }
+
+/* Встроенный чат в инструменте «AI» — фиксированная высота, чтобы скролл лога работал */
+.ai-tool-chat-wrap {
+  display: flex; min-width: 0; min-height: 0;
+  height: min(640px, calc(100vh - 220px));
+}
+@media (max-width: 880px) {
+  .ai-tool-chat-wrap { height: min(70vh, calc(100vh - 170px)); min-height: 380px; }
+}
