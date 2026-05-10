@@ -137,13 +137,15 @@
   function saveFired(m) { lsSet(KEYS.fired, JSON.stringify(m)); }
 
   // ---------- напоминания о привычках (по блокам утро/день/вечер) ----------
+  const BUCKET_WINDOW_MIN = 60; // окно после времени блока (на случай если вкладка была в фоне)
   async function checkHabitBuckets(user) {
     if (!hasNotif() || perm() !== 'granted' || !getSettings().enabled) return;
     if (inQuietHours()) return;
 
     const s = getSettings();
     const n = nowMin();
-    const due = BUCKETS.filter(b => toMin(s.times[b]) === n);
+    // блок «наступил», если сейчас от времени блока до +60 мин и он ещё не отрабатывал сегодня
+    const due = BUCKETS.filter(b => { const bt = toMin(s.times[b]); return bt >= 0 && n >= bt && n < bt + BUCKET_WINDOW_MIN; });
     if (!due.length) return;
 
     const fired = firedState();
@@ -342,6 +344,20 @@
     if (window.omxNotif.isEnabled()) ensureSW();
     setTimeout(tick, 3500);            // первый прогон — после загрузки sb/auth
     setInterval(tick, 30 * 1000);     // далее каждые 30 сек
+
+    // Мобильные браузеры замораживают setInterval, когда вкладка в фоне.
+    // Поэтому «догоняем» при возврате к приложению: видимость / фокус / онлайн.
+    let lastWake = 0;
+    const wake = () => {
+      const now = Date.now();
+      if (now - lastWake < 2000) return; // антидребезг (события могут прийти пачкой)
+      lastWake = now;
+      tick();
+    };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+    window.addEventListener('focus', wake);
+    window.addEventListener('online', wake);
+    window.addEventListener('pageshow', wake);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
