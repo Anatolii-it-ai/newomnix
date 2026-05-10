@@ -249,6 +249,20 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 CREATE INDEX IF NOT EXISTS idx_notif_user ON public.notifications(user_id, read);
 
+-- ========================
+-- 10. REMINDERS (напоминания по дате/времени)
+-- ========================
+CREATE TABLE IF NOT EXISTS public.reminders (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  remind_at TIMESTAMPTZ NOT NULL,
+  repeat TEXT NOT NULL DEFAULT 'none' CHECK (repeat IN ('none', 'daily', 'weekly', 'monthly')),
+  fired_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_user ON public.reminders(user_id, remind_at);
+
 -- =====================================================================
 -- ROW-LEVEL SECURITY
 -- =====================================================================
@@ -266,6 +280,7 @@ ALTER TABLE public.health_logs    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.journal        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reminders      ENABLE ROW LEVEL SECURITY;
 
 -- ----- PROFILES -----
 DROP POLICY IF EXISTS "profiles_self_read" ON public.profiles;
@@ -297,7 +312,7 @@ DECLARE
   t TEXT;
   user_tables TEXT[] := ARRAY[
     'wheel_scores', 'wheel_spheres', 'goals', 'tasks', 'habits',
-    'transactions', 'health_logs', 'reviews', 'journal', 'notifications'
+    'transactions', 'health_logs', 'reviews', 'journal', 'notifications', 'reminders'
   ];
 BEGIN
   FOREACH t IN ARRAY user_tables LOOP

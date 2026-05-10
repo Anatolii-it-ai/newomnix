@@ -41,6 +41,7 @@
     'notif.status_need_permission': 'Нужно разрешить уведомления в браузере',
     'notif.status_off': 'Напоминания выключены',
     'notif.status_on': 'Напоминания включены',
+    'notif.reminder_prefix': '⏰ Напоминание:',
   };
   function tr(key, vars) {
     let s;
@@ -93,9 +94,10 @@
     return swRegPromise;
   }
 
-  // ---------- показ уведомления ----------
+  // ---------- показ браузерного уведомления ----------
   async function notify(title, body, data) {
-    const opts = { body: body || '', icon: 'logo.svg', badge: 'logo.svg', tag: 'omx-habits', renotify: true, data: data || {} };
+    const d = data || {};
+    const opts = { body: body || '', icon: 'logo.svg', badge: 'logo.svg', tag: d.tag || 'omx-notif', renotify: true, data: d };
     try {
       const reg = await ensureSW();
       if (reg && typeof reg.showNotification === 'function') { await reg.showNotification(title, opts); return true; }
@@ -104,7 +106,28 @@
     return false;
   }
 
-  // ---------- дедуп: один раз в день на каждый блок ----------
+  // ---------- in-app уведомление (строка в таблице notifications) ----------
+  async function insertInApp(userId, title, body) {
+    try { await window.sb.from('notifications').insert({ user_id: userId, title: title, body: body || null }); } catch {}
+  }
+  function notifyRefresh() { try { document.dispatchEvent(new CustomEvent('omx-notif-refresh')); } catch {} }
+
+  // следующая дата повторяющегося напоминания (двигаем, пока не окажется в будущем)
+  function nextOccurrence(date, repeat) {
+    const d = new Date(date);
+    const now = Date.now();
+    let guard = 0;
+    do {
+      if (repeat === 'daily') d.setDate(d.getDate() + 1);
+      else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
+      else if (repeat === 'monthly') d.setMonth(d.getMonth() + 1);
+      else break;
+      guard++;
+    } while (d.getTime() <= now && guard < 3650);
+    return d;
+  }
+
+  // ---------- дедуп привычек: один раз в день на каждый блок ----------
   function firedState() {
     let m; try { m = JSON.parse(lsGet(KEYS.fired, '{}')) || {}; } catch { m = {}; }
     const today = todayIso();
@@ -113,52 +136,93 @@
   }
   function saveFired(m) { lsSet(KEYS.fired, JSON.stringify(m)); }
 
+  // ---------- напоминания о привычках (по блокам утро/день/вечер) ----------
+  async function checkHabitBuckets(user) {
+    if (!hasNotif() || perm() !== 'granted' || !getSettings().enabled) return;
+    if (inQuietHours()) return;
+
+    const s = getSettings();
+    const n = nowMin();
+    const due = BUCKETS.filter(b => toMin(s.times[b]) === n);
+    if (!due.length) return;
+
+    const fired = firedState();
+    const pending = due.filter(b => !fired[b]);
+    if (!pending.length) return;
+    pending.forEach(b => { fired[b] = true; });
+    saveFired(fired); // помечаем сразу — повторный тик в ту же минуту не задвоит
+
+    const { data: habits } = await window.sb.from('habits')
+      .select('id, name, time_of_day').eq('user_id', user.id).eq('archived', false);
+    if (!habits || !habits.length) return;
+    const ids = habits.map(h => h.id);
+    const { data: logs } = await window.sb.from('habit_logs')
+      .select('habit_id').in('habit_id', ids).eq('date', todayIso());
+    const done = new Set((logs || []).map(l => l.habit_id));
+
+    let any = false;
+    for (const b of pending) {
+      const list = habits.filter(h => h.time_of_day === b && !done.has(h.id));
+      if (!list.length) continue;
+      const names = list.slice(0, 3).map(h => h.name).join(', ') + (list.length > 3 ? '…' : '');
+      const title = tr('notif.habit_title', { bucket: tr('notif.bucket_' + b) });
+      const body = (list.length === 1)
+        ? tr('notif.habit_body_one', { names })
+        : tr('notif.habit_body_many', { count: list.length, names });
+      await notify(title, body, { url: 'tool.html?slug=habits', tag: 'omx-habit-' + b });
+      await insertInApp(user.id, title, body);
+      any = true;
+    }
+    if (any) notifyRefresh();
+  }
+
+  // ---------- напоминания по дате/времени ----------
+  async function checkReminders(user) {
+    const nowIso = new Date().toISOString();
+    const res = await window.sb.from('reminders').select('*')
+      .eq('user_id', user.id)
+      .lte('remind_at', nowIso)
+      .or('repeat.neq.none,fired_at.is.null')   // одноразовые уже отработавшие не тянем
+      .limit(50);
+    if (res.error) return; // таблица ещё не создана / нет доступа — тихо
+    const due = res.data || [];
+    if (!due.length) return;
+
+    let any = false;
+    for (const r of due) {
+      const remindTs = new Date(r.remind_at).getTime();
+      const firedTs = r.fired_at ? new Date(r.fired_at).getTime() : 0;
+      // уже отработало? для одноразовых — если есть fired_at; для повторяющихся — если fired_at не раньше текущего срока
+      if (r.repeat === 'none' ? firedTs > 0 : firedTs >= remindTs) continue;
+
+      const title = tr('notif.reminder_prefix') + ' ' + (r.title || '');
+      await insertInApp(user.id, title, '');                              // in-app — всегда
+      if (hasNotif() && perm() === 'granted' && !inQuietHours()) {        // браузер — если можно и не тихие часы
+        await notify(title, '', { url: 'dashboard.html', tag: 'omx-reminder-' + r.id });
+      }
+      if (r.repeat === 'none') {
+        await window.sb.from('reminders').update({ fired_at: nowIso }).eq('id', r.id).eq('user_id', user.id);
+      } else {
+        const next = nextOccurrence(new Date(r.remind_at), r.repeat);
+        await window.sb.from('reminders').update({ remind_at: next.toISOString(), fired_at: nowIso }).eq('id', r.id).eq('user_id', user.id);
+      }
+      any = true;
+    }
+    if (any) notifyRefresh();
+  }
+
   // ---------- основной тик ----------
   let ticking = false;
   async function tick() {
     if (ticking) return;
     ticking = true;
     try {
-      if (!hasNotif() || perm() !== 'granted') return;
-      if (!getSettings().enabled) return;
-      if (inQuietHours()) return;
       if (typeof window.sb === 'undefined') return;
-
-      const s = getSettings();
-      const n = nowMin();
-      const due = BUCKETS.filter(b => toMin(s.times[b]) === n);
-      if (!due.length) return;
-
-      const fired = firedState();
-      const pending = due.filter(b => !fired[b]);
-      if (!pending.length) return;
-      // помечаем сразу — чтобы повторный тик в эту же минуту не задвоил
-      pending.forEach(b => { fired[b] = true; });
-      saveFired(fired);
-
       let user = null;
       try { user = (await window.sb.auth.getUser()).data.user; } catch {}
       if (!user) return;
-
-      const { data: habits } = await window.sb.from('habits')
-        .select('id, name, time_of_day').eq('user_id', user.id).eq('archived', false);
-      if (!habits || !habits.length) return;
-
-      const ids = habits.map(h => h.id);
-      const { data: logs } = await window.sb.from('habit_logs')
-        .select('habit_id').in('habit_id', ids).eq('date', todayIso());
-      const done = new Set((logs || []).map(l => l.habit_id));
-
-      for (const b of pending) {
-        const list = habits.filter(h => h.time_of_day === b && !done.has(h.id));
-        if (!list.length) continue;
-        const names = list.slice(0, 3).map(h => h.name).join(', ') + (list.length > 3 ? '…' : '');
-        const title = tr('notif.habit_title', { bucket: tr('notif.bucket_' + b) });
-        const body = (list.length === 1)
-          ? tr('notif.habit_body_one', { names })
-          : tr('notif.habit_body_many', { count: list.length, names });
-        await notify(title, body, { url: 'tool.html?slug=habits' });
-      }
+      try { await checkReminders(user); } catch {}
+      try { await checkHabitBuckets(user); } catch {}
     } catch (e) {
       // фоновый процесс — молча
     } finally {
@@ -182,7 +246,39 @@
     },
     async test() {
       if (!hasNotif() || perm() !== 'granted') return false;
-      return notify(tr('notif.test_title'), tr('notif.test_body'), { url: 'dashboard.html' });
+      return notify(tr('notif.test_title'), tr('notif.test_body'), { url: 'dashboard.html', tag: 'omx-test' });
+    },
+    // ---------- напоминания по дате/времени (CRUD) ----------
+    reminders: {
+      async _uid() { try { return (await window.sb.auth.getUser()).data.user || null; } catch { return null; } },
+      async list() {
+        if (typeof window.sb === 'undefined') return [];
+        const user = await this._uid(); if (!user) return [];
+        const { data, error } = await window.sb.from('reminders').select('*').eq('user_id', user.id).order('remind_at');
+        if (error) throw error;
+        return data || [];
+      },
+      async save({ id, title, remind_at, repeat }) {
+        if (typeof window.sb === 'undefined') return { ok: false, error: 'no-db' };
+        const user = await this._uid(); if (!user) return { ok: false, error: 'no-auth' };
+        const ttl = String(title || '').trim();
+        const rep = ['none', 'daily', 'weekly', 'monthly'].includes(repeat) ? repeat : 'none';
+        if (!ttl || !remind_at) return { ok: false, error: 'empty' };
+        let res;
+        if (id) {
+          res = await window.sb.from('reminders').update({ title: ttl, remind_at, repeat: rep, fired_at: null }).eq('id', id).eq('user_id', user.id);
+        } else {
+          res = await window.sb.from('reminders').insert({ user_id: user.id, title: ttl, remind_at, repeat: rep, fired_at: null });
+        }
+        if (!res.error) setTimeout(tick, 300);
+        return { ok: !res.error, error: res.error && res.error.message };
+      },
+      async remove(id) {
+        if (typeof window.sb === 'undefined') return false;
+        const user = await this._uid(); if (!user) return false;
+        const { error } = await window.sb.from('reminders').delete().eq('id', id).eq('user_id', user.id);
+        return !error;
+      },
     },
     // Привязать UI настроек по фиксированным id (см. блок в dashboard.html)
     bindSettingsUI() {

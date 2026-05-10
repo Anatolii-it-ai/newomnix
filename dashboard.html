@@ -160,8 +160,16 @@
 
       <!-- Notifications -->
       <section class="tab-panel" data-panel="notifications" hidden>
+        <div class="card" style="margin-bottom:24px">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px">
+            <h2 style="margin:0" data-i18n="notif.reminders_title">Мои напоминания</h2>
+            <button class="btn btn-primary btn-sm" id="reminder-add-btn" data-i18n="notif.reminder_add">+ Напоминание</button>
+          </div>
+          <p class="muted" style="margin:0 0 14px; font-size:13px" data-i18n="notif.reminders_sub">Напоминания по дате и времени. Когда наступит срок — попадут сюда в уведомления (и в браузер, если разрешено).</p>
+          <div id="reminders-list"></div>
+        </div>
         <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:14px">
             <h2 style="margin:0" data-i18n="dashboard.notifications_all">Все уведомления</h2>
             <button class="btn btn-sm" id="page-read-all" data-i18n="dashboard.notifications_read_all">Прочитать все</button>
           </div>
@@ -273,10 +281,10 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=1"></script>
-  <script src="i18n.js?v=4"></script>
+  <script src="i18n.js?v=5"></script>
   <script src="auth.js?v=5"></script>
   <script src="palette.js?v=1"></script>
-  <script src="notifications.js?v=1"></script>
+  <script src="notifications.js?v=2"></script>
   <script>
   (async () => {
     // Помощник: вешаем обработчик только если элемент есть
@@ -298,6 +306,7 @@
       try {
         if (name === 'tools' && typeof loadTools === 'function') loadTools();
         if (name === 'notifications' && typeof loadNotificationsPage === 'function') loadNotificationsPage();
+        if (name === 'notifications' && typeof loadReminders === 'function') loadReminders();
         if (name === 'profile' && typeof loadProfile === 'function') loadProfile();
         if (name === 'subscription' && typeof loadSubscription === 'function') loadSubscription();
       } catch (e) { console.error('tab loader error', e); }
@@ -381,14 +390,36 @@
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
       const list = document.getElementById('notif-page-list');
-      list.innerHTML = (data || []).map(n => `
-        <div class="notif ${n.read ? '' : 'unread'}">
-          <div><strong>${esc(n.title)}</strong>${n.body ? `<span class="muted">${esc(n.body)}</span>` : ''}</div>
-          <span class="meta">${fmtDate(n.created_at)}</span>
+      const items = data || [];
+      list.innerHTML = items.map(n => `
+        <div class="notif ${n.read ? '' : 'unread'}" data-id="${n.id}">
+          <div style="min-width:0">
+            <strong>${esc(n.title)}</strong>
+            ${n.body ? `<div class="muted" style="margin-top:2px">${esc(n.body)}</div>` : ''}
+            <div class="meta" style="margin-top:4px">${fmtDate(n.created_at)}</div>
+          </div>
+          <span style="display:flex; gap:4px; align-items:flex-start; flex-shrink:0">
+            <button class="btn btn-sm btn-ghost notif-toggle" style="padding:6px 9px" title="${esc(t(n.read ? 'notif.mark_unread' : 'notif.mark_read'))}">${n.read ? '○' : '✓'}</button>
+            <button class="btn btn-sm btn-danger notif-del" style="padding:6px 9px" title="${esc(t('common.delete'))}">×</button>
+          </span>
         </div>
       `).join('') || `<p class="muted">${esc(t('dashboard.notifications_empty'))}</p>`;
+
+      list.querySelectorAll('.notif-toggle').forEach(b => b.addEventListener('click', async () => {
+        const el = b.closest('[data-id]');
+        const id = +el.dataset.id;
+        const isUnread = el.classList.contains('unread');
+        await sb.from('notifications').update({ read: isUnread }).eq('id', id).eq('user_id', user.id);
+        loadNotifications(); loadNotificationsPage();
+      }));
+      list.querySelectorAll('.notif-del').forEach(b => b.addEventListener('click', async () => {
+        const id = +b.closest('[data-id]').dataset.id;
+        await sb.from('notifications').delete().eq('id', id).eq('user_id', user.id);
+        loadNotifications(); loadNotificationsPage();
+      }));
     }
 
     document.getElementById('read-all-btn').addEventListener('click', async () => {
@@ -398,6 +429,114 @@
     document.getElementById('page-read-all').addEventListener('click', async () => {
       await sb.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
       loadNotifications(); loadNotificationsPage();
+    });
+
+    // ----- Напоминания (reminders): список + создание/редактирование/удаление -----
+    function repeatLabel(r) {
+      const key = 'notif.repeat_' + r;
+      const v = (typeof t === 'function') ? t(key) : r;
+      return (v && v !== key) ? v : r;
+    }
+    async function loadReminders() {
+      const wrap = document.getElementById('reminders-list');
+      if (!wrap) return;
+      if (typeof omxNotif === 'undefined' || !omxNotif.reminders) {
+        wrap.innerHTML = `<p class="muted">${esc(t('notif.reminders_unavailable'))}</p>`;
+        return;
+      }
+      let list;
+      try { list = await omxNotif.reminders.list(); }
+      catch { wrap.innerHTML = `<p class="muted">${esc(t('notif.reminders_unavailable'))}</p>`; return; }
+      if (!list.length) { wrap.innerHTML = `<p class="muted">${esc(t('notif.reminders_empty'))}</p>`; return; }
+      wrap.innerHTML = `<div class="notif-list">` + list.map(r => {
+        const past = (r.repeat === 'none' && r.fired_at);
+        const rep = r.repeat !== 'none' ? ` · ${esc(repeatLabel(r.repeat))}` : '';
+        const done = past ? ` · ${esc(t('notif.reminder_done'))}` : '';
+        return `
+        <div class="notif" data-rid="${r.id}" style="${past ? 'opacity:.55;' : ''}">
+          <div style="min-width:0">
+            <strong>${esc(r.title)}</strong>
+            <div class="muted" style="margin-top:2px">${esc(fmtDate(r.remind_at))}${rep}${done}</div>
+          </div>
+          <span style="display:flex; gap:4px; align-items:flex-start; flex-shrink:0">
+            <button class="btn btn-sm btn-ghost rmd-edit" style="padding:6px 9px" title="${esc(t('common.edit'))}">✎</button>
+            <button class="btn btn-sm btn-danger rmd-del" style="padding:6px 9px" title="${esc(t('common.delete'))}">×</button>
+          </span>
+        </div>`;
+      }).join('') + `</div>`;
+      wrap.querySelectorAll('.rmd-edit').forEach(b => b.addEventListener('click', () => {
+        const id = +b.closest('[data-rid]').dataset.rid;
+        openReminderForm(list.find(x => x.id === id) || null);
+      }));
+      wrap.querySelectorAll('.rmd-del').forEach(b => b.addEventListener('click', async () => {
+        const id = +b.closest('[data-rid]').dataset.rid;
+        if (!confirm(t('notif.reminder_confirm_del'))) return;
+        await omxNotif.reminders.remove(id);
+        loadReminders();
+      }));
+    }
+
+    function openReminderForm(reminder) {
+      const root = document.getElementById('modal-root');
+      const isEdit = !!(reminder && reminder.id);
+      const pad = (n) => String(n).padStart(2, '0');
+      let d;
+      if (reminder && reminder.remind_at) d = new Date(reminder.remind_at);
+      else { d = new Date(Date.now() + 60 * 60 * 1000); d.setMinutes(0, 0, 0); }
+      const dateVal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const timeVal = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const rep = (reminder && reminder.repeat) || 'none';
+      root.innerHTML = `
+        <div class="modal-bg"><div class="modal">
+          <h2 style="margin-top:0">${esc(t(isEdit ? 'notif.reminder_edit' : 'notif.reminder_new'))}</h2>
+          <div class="field">
+            <label>${esc(t('notif.reminder_field_title'))}</label>
+            <input class="input" id="rf-title" maxlength="200" value="${reminder ? esc(reminder.title) : ''}" />
+          </div>
+          <div class="grid cols-2" style="gap:14px">
+            <div class="field"><label>${esc(t('notif.reminder_field_date'))}</label><input class="input" type="date" id="rf-date" value="${dateVal}" /></div>
+            <div class="field"><label>${esc(t('notif.reminder_field_time'))}</label><input class="input" type="time" id="rf-time" value="${timeVal}" /></div>
+          </div>
+          <div class="field">
+            <label>${esc(t('notif.reminder_field_repeat'))}</label>
+            <select class="input" id="rf-repeat">
+              ${['none', 'daily', 'weekly', 'monthly'].map(x => `<option value="${x}" ${rep === x ? 'selected' : ''}>${esc(repeatLabel(x))}</option>`).join('')}
+            </select>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" id="rf-cancel">${esc(t('common.cancel'))}</button>
+            <button class="btn btn-primary" id="rf-save">${esc(t('common.save'))}</button>
+          </div>
+        </div></div>`;
+      const close = () => { root.innerHTML = ''; };
+      root.querySelector('.modal-bg').addEventListener('click', (e) => { if (e.target.classList.contains('modal-bg')) close(); });
+      document.getElementById('rf-cancel').addEventListener('click', close);
+      document.getElementById('rf-title').focus();
+      document.getElementById('rf-save').addEventListener('click', async () => {
+        const title = document.getElementById('rf-title').value.trim();
+        const dv = document.getElementById('rf-date').value;
+        const tv = document.getElementById('rf-time').value || '09:00';
+        const repeat = document.getElementById('rf-repeat').value;
+        if (!title) { toast(t('notif.reminder_err_title'), 'error'); return; }
+        if (!dv) { toast(t('notif.reminder_err_date'), 'error'); return; }
+        const remindAt = new Date(`${dv}T${tv}`); // локальное время → ISO (UTC)
+        if (isNaN(remindAt.getTime())) { toast(t('notif.reminder_err_date'), 'error'); return; }
+        const payload = { title, remind_at: remindAt.toISOString(), repeat };
+        if (isEdit) payload.id = reminder.id;
+        const res = await omxNotif.reminders.save(payload);
+        if (!res.ok) { toast(t('notif.reminder_err_save'), 'error'); return; }
+        close();
+        loadReminders();
+        toast(t('notif.reminder_saved'), 'success');
+      });
+    }
+
+    on($('reminder-add-btn'), 'click', () => openReminderForm(null));
+
+    // фоновый процесс уведомлений просит обновить колокольчик/списки
+    document.addEventListener('omx-notif-refresh', () => {
+      loadNotifications();
+      if (activeTab === 'notifications') { loadNotificationsPage(); loadReminders(); }
     });
 
     const TOOL_SLUG_ORDER = ['dashboard', 'goals', 'tasks', 'planner', 'habits', 'finances', 'health', 'reviews', 'journal', 'ai', 'gamification'];
@@ -1158,6 +1297,8 @@
       loadOverviewData();
       loadTools();
       loadWidgets();
+      loadNotifications();
+      if (activeTab === 'notifications') { loadNotificationsPage(); loadReminders(); }
       if (activeTab === 'profile' && typeof omxNotif !== 'undefined' && omxNotif.bindSettingsUI) omxNotif.bindSettingsUI();
       const tabTitles = t('dashboard.tab_titles') || {};
       document.getElementById('page-title').textContent = tabTitles[activeTab] || activeTab;
